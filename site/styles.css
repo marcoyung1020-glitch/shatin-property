@@ -201,3 +201,4 @@ label.chk input { width: 16px; height: 16px; accent-color: var(--color-primary);
 .th-sort:hover { color: var(--color-text); }
 .th-sort:focus-visible { outline: 2px solid var(--color-primary, #0b5f63); outline-offset: 2px; border-radius: 2px; }
 th[aria-sort="ascending"] .th-sort, th[aria-sort="descending"] .th-sort { color: var(--color-text); font-weight: 600; }
+.btn-row { display: flex; gap: var(--space-2); flex-wrap: wrap; }

@@ -240,7 +240,7 @@ function firstCell(y, multi) {
 /* ---------- 屋苑比較 ---------- */
 let estSort = 'u500';
 function initEstates() {
-  DATA.estates.forEach(e => e.u500 = DATA.listings.filter(x => x.e === e.id && x.p <= 500).length);
+  DATA.estates.forEach(e => { const m = DATA.listings.filter(x => x.e === e.id); e.u500 = m.filter(x => x.p <= 500).length; e.u400 = m.filter(x => x.p <= 400).length; });
   $$('#tbl-est th.sortable').forEach(th => th.onclick = () => { estSort = th.dataset.k; renderEstates(); });
   renderEstates();
 }
@@ -258,7 +258,8 @@ function renderEstates() {
       <td><span class="sub2" style="white-space:nowrap">${mtr}</span></td>
       <td class="num">${e.med_psf ? '$' + fmt(e.med_psf) : '—'}</td>
       <td class="num">${e.med_price ? wan(e.med_price) : '—'}</td>
-      <td class="num"><a href="#listings?e=${e.id}" data-goto="${e.id}">${e.u500}</a></td>
+      <td class="num"><a href="#listings?e=${e.id}" data-goto="${e.id}" data-max="400">${e.u400}</a></td>
+      <td class="num"><a href="#listings?e=${e.id}" data-goto="${e.id}" data-max="500">${e.u500}</a></td>
       <td class="num">${e.rent_psf ? '$' + fmt(e.rent_psf, 1) : '—'}</td>
       <td class="num">${e.yield_ ? fmt(e.yield_, 2) + '%' : '—'}</td>
       <td style="min-width:260px">${lk('midland', '美聯', c.midland)}${lk('centanet', '中原', c.centanet)}${lk('ricacorp', '利嘉閣', c.ricacorp)}</td>
@@ -268,7 +269,7 @@ function renderEstates() {
     r.onclick = ev => { if (ev.target.closest('a')) return; showEstate(r.dataset.id); };
     r.onkeydown = ev => { if (ev.key === 'Enter') showEstate(r.dataset.id); };
   });
-  $$('[data-goto]').forEach(a => a.onclick = ev => { ev.preventDefault(); $('#f-estate').value = a.dataset.goto; shown = 60; renderListings(); location.hash = '#listings'; });
+  $$('[data-goto]').forEach(a => a.onclick = ev => { ev.preventDefault(); $('#f-estate').value = a.dataset.goto; $('#f-max').value = a.dataset.max; shown = 60; renderListings(); location.hash = '#listings'; });
 }
 function showEstate(id) {
   const e = EST[id];
@@ -277,7 +278,7 @@ function showEstate(id) {
   const sold = (e.sold || []).map(s => `<tr><td>${esc(s.bldg)} ${esc(s.floor)}樓</td><td class="num">${fmt(s.area)}呎</td><td class="num">${s.rooms ?? '—'}房</td><td class="num">${wan(s.price / 1e4)}</td><td class="num">${s.area ? '$' + fmt(s.price / s.area) : '—'}</td></tr>`).join('');
   const mine = DATA.listings.filter(x => x.e === id && x.p <= 500).length;
   $('#est-detail').innerHTML = `<article class="card detail">
-    <div class="card-head"><h2>${esc(e.name)}</h2><button class="btn sm" data-goto2="${id}">睇 ≤500萬放盤（${mine}）</button></div>
+    <div class="card-head"><h2>${esc(e.name)}</h2><div class="btn-row"><button class="btn ghost sm" data-goto2="400">睇 ≤400萬放盤（${e.u400}）</button><button class="btn sm" data-goto2="500">睇 ≤500萬放盤（${mine}）</button></div></div>
     <div class="detail-grid">
       <dl class="facts">
         <div><dt>地址</dt><dd>${esc(e.address) || '—'}</dd></div>
@@ -295,7 +296,7 @@ function showEstate(id) {
       </div>
     </div>
   </article>`;
-  $('[data-goto2]').onclick = () => { $('#f-estate').value = id; $('#f-max').value = 500; shown = 60; renderListings(); location.hash = '#listings'; };
+  $$('[data-goto2]').forEach(b => b.onclick = () => { $('#f-estate').value = id; $('#f-max').value = b.dataset.goto2; shown = 60; renderListings(); location.hash = '#listings'; });
   $('#est-detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
