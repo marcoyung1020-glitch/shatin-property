@@ -1,0 +1,307 @@
+(() => {
+'use strict';
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const fmt = (n, d = 0) => n == null || isNaN(n) ? '—' : Number(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+const money = n => '$' + fmt(Math.round(n));
+const wan = n => fmt(n, n % 1 ? 1 : 0) + '萬';
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const SRC = { midland: '美聯', centanet: '中原', ricacorp: '利嘉閣', '28hse': '28Hse', house730: 'House730' };
+const H_CAP = 3.25, H_SPREAD = 1.3;
+let DATA, EST = {}, charts = {};
+
+/* ---------- 分頁 ---------- */
+const TABS = ['market', 'listings', 'estates', 'calc'];
+function route() {
+  const h = (location.hash || '#market').slice(1).split('?')[0];
+  const t = TABS.includes(h) ? h : 'market';
+  TABS.forEach(x => { $('#view-' + x).hidden = x !== t; });
+  $$('.tabs a').forEach(a => a.classList.toggle('on', a.dataset.tab === t));
+  if (t === 'calc') calc();
+  window.scrollTo({ top: 0 });
+}
+window.addEventListener('hashchange', route);
+
+/* ---------- 載入 ---------- */
+fetch('data/app.json').then(r => r.json()).then(d => {
+  DATA = d;
+  d.estates.forEach(e => EST[e.id] = e);
+  const g = (d.generated || '').replace('T', ' ').slice(0, 16);
+  $('#stamp').textContent = '數據更新：' + g;
+  route();
+  initMarket(); initListings(); initEstates(); initCalc();
+}).catch(err => { $('#stamp').textContent = '數據載入失敗'; console.error(err); });
+
+/* ---------- 市場追蹤 ---------- */
+function kpi(l, v, d, cls = '', dcls = '') {
+  return `<div class="kpi ${cls}"><span class="l">${l}</span><span class="v">${v}</span><span class="d ${dcls}">${d}</span></div>`;
+}
+const pct = x => (x > 0 ? '▲ ' : x < 0 ? '▼ ' : '') + fmt(Math.abs(x), 2) + '%';
+const dir = x => x > 0 ? 'up' : x < 0 ? 'down' : '';
+
+function initMarket() {
+  const m = DATA.market, c = m.ccl_latest || {};
+  const hb = m.hibor_daily || [], hl = hb[hb.length - 1] || [];
+  const lr = m.landreg || [], l1 = lr[lr.length - 1], l0 = lr[lr.length - 2], l12 = lr.find(r => l1 && r[0] === (Number(l1[0].slice(0, 4)) - 1) + l1[0].slice(4));
+  const rv = m.rvd_index || [], r1 = rv[rv.length - 1], r0 = rv[rv.length - 2];
+  const hEff = hl[2] != null ? Math.min(hl[2] + H_SPREAD, H_CAP) : null;
+  const cw = c.ccl || {}, ne = c.nte || {};
+  const ccl1 = (m.ccl_weekly || []).slice(-1)[0];
+  const ytd0 = (m.ccl_weekly || []).filter(r => r[0] < ccl1[0].slice(0, 4) + '-01-01').pop();
+  const ytd = ytd0 ? (ccl1[1] / ytd0[1] - 1) * 100 : null;
+  const pub = (cw.publishDate || '').slice(5, 10).replace('-', '/');
+  $('#kpis').innerHTML = [
+    kpi('CCL 整體', fmt(cw.index, 2), `<span class="${dir(cw.trendChangeWeek)}">${pct(cw.trendChangeWeek)}</span> 按週 · 今年 ${ytd != null ? (ytd > 0 ? '+' : '') + fmt(ytd, 1) + '%' : '—'}`, 'accent'),
+    kpi('CCL 新界東', fmt(ne.index, 2), `<span class="${dir(ne.trendChangeWeek)}">${pct(ne.trendChangeWeek)}</span> 按週 · ${pub} 公佈`),
+    kpi('1個月 HIBOR', fmt(hl[2], 3) + '%', `${(hl[0] || '').slice(5).replace('-', '/')} 定價 · 隔夜 ${fmt(hl[1], 2)}%`),
+    kpi('H按實際息率', fmt(hEff, 2) + '%', hEff >= H_CAP ? '已觸及封頂 P − 1.75%' : `H + 1.3%，未觸封頂`),
+    kpi(`${l1 ? Number(l1[0].slice(5)) : ''}月住宅買賣登記`, fmt(l1 && l1[1]), l1 && l0 ? `<span class="${dir(l1[1] - l0[1])}">${pct((l1[1] / l0[1] - 1) * 100)}</span> 按月${l12 ? ` · ${pct((l1[1] / l12[1] - 1) * 100)} 按年` : ''}` : ''),
+    kpi('差估署樓價指數', fmt(r1 && r1[1], 1), r1 && r0 ? `${r1[0].replace('-', '年')}月 · <span class="${dir(r1[1] - r0[1])}">${pct((r1[1] / r0[1] - 1) * 100)}</span> 按月` : '')
+  ].join('');
+  $('#r-h').textContent = fmt(hEff, 2) + '%';
+  if (!window.Chart) { setTimeout(initMarket, 200); return; }
+  drawCharts();
+}
+
+const X = () => ({ grid: { display: false }, ticks: { maxTicksLimit: innerWidth < 560 ? 4 : 7, maxRotation: 0, autoSkipPadding: 16,
+  callback(v) { const l = String(this.getLabelForValue(v)); return l.length >= 7 ? l.slice(2, 7).replace('-', '/') : l; } } });
+function baseOpts(extra = {}) {
+  const css = getComputedStyle(document.documentElement);
+  const muted = css.getPropertyValue('--color-text-muted').trim(), grid = css.getPropertyValue('--color-divider').trim();
+  Chart.defaults.font.family = css.getPropertyValue('--font-body');
+  Chart.defaults.font.size = 12;
+  Chart.defaults.color = muted;
+  return Object.assign({
+    responsive: true, maintainAspectRatio: false, animation: { duration: 600 },
+    interaction: { mode: 'index', intersect: false },
+    plugins: { legend: { position: 'top', align: innerWidth < 560 ? 'start' : 'end', labels: { boxWidth: 8, boxHeight: 8, usePointStyle: true, pointStyle: 'circle', pointStyleWidth: 8, padding: 10, font: { size: 11 } } }, tooltip: { padding: 10 } },
+    scales: { x: X(), y: { grid: { color: grid }, border: { display: false } } }
+  }, extra);
+}
+const line = (label, data, color, o = {}) => Object.assign({ label, data, borderColor: color, backgroundColor: color, borderWidth: 2, pointRadius: 0, tension: .2 }, o);
+
+function drawCharts() {
+  const m = DATA.market;
+  // CCL
+  const drawCCL = n => {
+    const w = (m.ccl_weekly || []).slice(-n);
+    charts.ccl && charts.ccl.destroy();
+    charts.ccl = new Chart($('#c-ccl'), { type: 'line', data: { labels: w.map(r => r[0]), datasets: [line('CCL 整體', w.map(r => r[1]), '#0b5f63'), line('新界東', w.map(r => r[2]), '#c9650a')] }, options: baseOpts() });
+  };
+  drawCCL(156);
+  $$('[data-ccl]').forEach(b => b.onclick = () => { $$('[data-ccl]').forEach(x => x.classList.toggle('on', x === b)); drawCCL(+b.dataset.ccl); });
+  // HIBOR
+  const hb = m.hibor_daily || [];
+  charts.h = new Chart($('#c-hibor'), { type: 'line', data: { labels: hb.map(r => r[0]), datasets: [
+    line('1M HIBOR', hb.map(r => r[2]), '#1f5f8b'),
+    line('H按實際（H+1.3%）', hb.map(r => Math.min(r[2] + H_SPREAD, H_CAP)), '#0b5f63', { borderWidth: 4, order: 2 }),
+    line('封頂 3.25%', hb.map(() => H_CAP), '#a3324a', { borderDash: [5, 4], borderWidth: 1.5, order: 0 })
+  ] }, options: baseOpts({ scales: { x: X(), y: { ticks: { callback: v => v + '%' } } } }) });
+  // 土地註冊處
+  const lr = (m.landreg || []).slice(-36);
+  charts.lr = new Chart($('#c-lr'), { type: 'bar', data: { labels: lr.map(r => r[0]), datasets: [
+    { type: 'bar', label: '住宅買賣宗數', data: lr.map(r => r[1]), backgroundColor: '#9fc3bf', borderRadius: 2, yAxisID: 'y' },
+    line('總值（億元）', lr.map(r => r[3] ? r[3] / 100 : null), '#c9650a', { yAxisID: 'y1', type: 'line' })
+  ] }, options: baseOpts({ scales: { x: X(), y: { position: 'left' }, y1: { position: 'right', grid: { display: false } } } }) });
+  // RVD
+  const rv = (m.rvd_index || []).filter(r => r[0] >= '2018-01');
+  charts.rv = new Chart($('#c-rvd'), { type: 'line', data: { labels: rv.map(r => r[0]), datasets: [
+    line('樓價指數（全港）', rv.map(r => r[1]), '#0b5f63'),
+    line('租金指數（全港）', rv.map(r => r[2]), '#c9650a', { yAxisID: 'y1' })
+  ] }, options: baseOpts({ scales: { x: X(), y: { title: { display: true, text: '樓價' } }, y1: { position: 'right', grid: { display: false }, title: { display: true, text: '租金' } } } }) });
+}
+
+/* ---------- 放盤 ---------- */
+let shown = 60;
+function initListings() {
+  const sel = $('#f-estate');
+  DATA.estates.forEach(e => sel.insertAdjacentHTML('beforeend', `<option value="${e.id}">${esc(e.name)}（${esc(e.area)}）</option>`));
+  $('#filters').addEventListener('input', () => { shown = 60; renderListings(); });
+  $('#more').onclick = () => { shown += 60; renderListings(); };
+  const q = new URLSearchParams((location.hash.split('?')[1]) || '');
+  if (q.get('e')) sel.value = q.get('e');
+  const n = DATA.listings.length;
+  $('#list-sub').textContent = `${n.toLocaleString()} 條放盤記錄 · 5 個平台 · 15 個屋苑`;
+  renderListings();
+}
+function filtered() {
+  const e = $('#f-estate').value, max = +$('#f-max').value || Infinity, rooms = $('#f-rooms').value,
+    area = +$('#f-area').value || 0, psf = +$('#f-psf').value || Infinity, srcs = new Set($$('.srcs input:checked').map(i => i.value));
+  return DATA.listings.filter(x => (!e || x.e === e) && x.p <= max && srcs.has(x.s) && (!area || (x.a || 0) >= area) && (psf === Infinity || (x.f && x.f <= psf)) &&
+    (rooms === '' || (rooms === '3' ? x.r >= 3 : x.r === +rooms)));
+}
+const floorKey = f => /高/.test(f) ? '高' : /中/.test(f) ? '中' : /低|地/.test(f) ? '低' : '';
+function renderListings() {
+  let L = filtered();
+  const merge = $('#f-merge').checked;
+  let rows;
+  if (merge) {
+    const g = new Map();
+    L.forEach(x => {
+      const k = x.a ? [x.e, x.a, x.r ?? '?'].join('|') : 'u' + Math.random();
+      if (!g.has(k)) g.set(k, []);
+      g.get(k).push(x);
+    });
+    // 同面積同房數再按樓層細分；冇樓層資料嘅歸入最大組
+    const g2 = new Map();
+    g.forEach((arr, k) => {
+      const b = {};
+      arr.filter(x => floorKey(x.fl)).forEach(x => (b[floorKey(x.fl)] ||= []).push(x));
+      const keys = Object.keys(b);
+      const blank = arr.filter(x => !floorKey(x.fl));
+      if (!keys.length) { g2.set(k, blank); return; }
+      const big = keys.sort((a, c) => b[c].length - b[a].length)[0];
+      b[big].push(...blank);
+      keys.forEach(f => g2.set(k + f, b[f]));
+    });
+    rows = [...g2.values()].map(arr => { arr.sort((a, b) => a.p - b.p); return { ...arr[0], all: arr }; });
+  } else rows = L.map(x => ({ ...x, all: [x] }));
+  const key = $('#f-sort').value;
+  rows.sort((a, b) => key === 'a' ? (b.a || 0) - (a.a || 0) : key === 'd' ? (b.d || '').localeCompare(a.d || '') : key === 'f' ? (a.f || 1e9) - (b.f || 1e9) : a.p - b.p);
+  $('#res-count').textContent = merge ? `${rows.length} 個單位（${L.length} 條放盤）` : `${rows.length} 條放盤`;
+  const ps = L.map(x => x.f).filter(Boolean).sort((a, b) => a - b);
+  $('#res-note').textContent = ps.length ? `中位呎價 $${fmt(ps[Math.floor(ps.length / 2)])}` : '';
+  const tb = $('#tbl-list tbody');
+  tb.innerHTML = rows.slice(0, shown).map(x => {
+    const e = EST[x.e] || {};
+    const srcMap = new Map();
+    x.all.forEach(y => { if (!srcMap.has(y.s)) srcMap.set(y.s, y); });
+    const srcs = [...srcMap.values()].map(y => `<a class="src s-${y.s}" href="${esc(y.u)}" target="_blank" rel="noopener"><i></i>${SRC[y.s]}${x.all.length > 1 ? ' ' + wan(y.p) : ''}</a>`).join('');
+    const tags = [...new Set(x.all.flatMap(y => y.t || []))].slice(0, 3).map(t => `<span class="chip">${esc(t)}</span>`).join('') + (x.ls ? '<span class="chip">連租約</span>' : '') + (x.o ? '<span class="chip">業主盤</span>' : '');
+    const rooms = x.r == null ? '—' : x.r === 0 ? '開放式' : x.r + '房';
+    const spread = x.all.length > 1 && x.all[x.all.length - 1].p !== x.p ? `<span class="sub2">叫價 ${wan(x.p)}–${wan(x.all[x.all.length - 1].p)}</span>` : '';
+    return `<tr>
+      <td class="c-est"><span class="est-name">${esc(e.name)}</span><span class="sub2">${esc(x.b) || '&nbsp;'}</span></td>
+      <td class="num c-price"><span class="price">${wan(x.p)}</span>${spread}</td>
+      <td class="num c-hide">${x.a ? fmt(x.a) + '呎' : '—'}</td>
+      <td class="num c-hide">${x.f ? '$' + fmt(x.f) : '—'}</td>
+      <td class="c-hide">${rooms}</td>
+      <td class="c-hide">${esc(x.fl) || '—'}</td>
+      <td class="c-meta">${x.a ? fmt(x.a) + '呎' : ''} · ${x.f ? '$' + fmt(x.f) + '/呎' : ''} · ${rooms} · ${esc(x.fl)}</td>
+      <td class="c-src">${srcs}</td>
+      <td class="c-tags"><div class="chips">${tags}</div></td>
+      <td class="c-act"><button class="btn ghost sm" data-calc="${x.p}">計按揭</button></td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="9" class="muted">冇符合條件嘅放盤，試下放寬篩選。</td></tr>`;
+  $('#more').hidden = rows.length <= shown;
+  $$('[data-calc]', tb).forEach(b => b.onclick = () => { $('#c-price').value = b.dataset.calc; location.hash = '#calc'; });
+}
+
+/* ---------- 屋苑比較 ---------- */
+let estSort = 'u500';
+function initEstates() {
+  DATA.estates.forEach(e => e.u500 = DATA.listings.filter(x => x.e === e.id && x.p <= 500).length);
+  $$('#tbl-est th.sortable').forEach(th => th.onclick = () => { estSort = th.dataset.k; renderEstates(); });
+  renderEstates();
+}
+function renderEstates() {
+  const E = [...DATA.estates].sort((a, b) => estSort === 'med_psf' || estSort === 'med_price' ? (a[estSort] || 1e9) - (b[estSort] || 1e9) : (b[estSort] || 0) - (a[estSort] || 0));
+  $$('#tbl-est th').forEach(th => th.classList.toggle('sorted', th.dataset.k === estSort));
+  $('#tbl-est tbody').innerHTML = E.map(e => {
+    const c = e.counts, L = e.links;
+    const lk = (k, lab, n) => L[k] ? `<a class="src s-${k === 'h28' ? '28hse' : k === 'h730' ? 'house730' : k}" href="${esc(L[k])}" target="_blank" rel="noopener"><i></i>${lab} ${n ?? '—'}</a>` : '';
+    const mtr = (e.mtr || []).map(a => `${esc(a.name)}${a.walking_minute ? ' ' + a.walking_minute + '分鐘' : ''}`).join('<br>') || '—';
+    return `<tr class="est-row" data-id="${e.id}" tabindex="0">
+      <td><span class="est-name">${esc(e.name)}</span><span class="sub2">${esc(e.area)}</span></td>
+      <td>${esc(e.op_year) || '—'}</td>
+      <td class="num">${esc((e.flats || '').replace('伙', '')) || '—'}</td>
+      <td><span class="sub2" style="white-space:nowrap">${mtr}</span></td>
+      <td class="num">${e.med_psf ? '$' + fmt(e.med_psf) : '—'}</td>
+      <td class="num">${e.med_price ? wan(e.med_price) : '—'}</td>
+      <td class="num"><a href="#listings?e=${e.id}" data-goto="${e.id}">${e.u500}</a></td>
+      <td class="num">${e.rent_psf ? '$' + fmt(e.rent_psf, 1) : '—'}</td>
+      <td class="num">${e.yield_ ? fmt(e.yield_, 2) + '%' : '—'}</td>
+      <td style="min-width:260px">${lk('midland', '美聯', c.midland)}${lk('centanet', '中原', c.centanet)}${lk('ricacorp', '利嘉閣', c.ricacorp)}${lk('h28', '28Hse', c['28hse'])}${lk('h730', 'House730', c.house730)}</td>
+    </tr>`;
+  }).join('');
+  $$('.est-row').forEach(r => {
+    r.onclick = ev => { if (ev.target.closest('a')) return; showEstate(r.dataset.id); };
+    r.onkeydown = ev => { if (ev.key === 'Enter') showEstate(r.dataset.id); };
+  });
+  $$('[data-goto]').forEach(a => a.onclick = ev => { ev.preventDefault(); $('#f-estate').value = a.dataset.goto; shown = 60; renderListings(); location.hash = '#listings'; });
+}
+function showEstate(id) {
+  const e = EST[id];
+  $$('.est-row').forEach(r => r.classList.toggle('sel', r.dataset.id === id));
+  const st = e.stat || {};
+  const sold = (e.sold || []).map(s => `<tr><td>${esc(s.bldg)} ${esc(s.floor)}樓</td><td class="num">${fmt(s.area)}呎</td><td class="num">${s.rooms ?? '—'}房</td><td class="num">${wan(s.price / 1e4)}</td><td class="num">${s.area ? '$' + fmt(s.price / s.area) : '—'}</td></tr>`).join('');
+  const mine = DATA.listings.filter(x => x.e === id && x.p <= 500).length;
+  $('#est-detail').innerHTML = `<article class="card detail">
+    <div class="card-head"><h2>${esc(e.name)}</h2><button class="btn sm" data-goto2="${id}">睇 ≤500萬放盤（${mine}）</button></div>
+    <div class="detail-grid">
+      <dl class="facts">
+        <div><dt>地址</dt><dd>${esc(e.address) || '—'}</dd></div>
+        <div><dt>發展商</dt><dd>${esc(e.developer) || '—'}</dd></div>
+        <div><dt>座數／伙數</dt><dd>${esc(e.blocks) || '—'}／${esc(e.flats) || '—'}</dd></div>
+        <div><dt>入伙</dt><dd>${esc(e.op_year) || '—'}</dd></div>
+        <div><dt>小學校網</dt><dd>${e.school ? esc(e.school) + ' 校網' : '—'}</dd></div>
+        <div><dt>就近商場</dt><dd>${(e.mall || []).map(a => esc(a.name) + (a.walking_minute ? `（步行 ${a.walking_minute} 分鐘）` : '')).join('') || '—'}</dd></div>
+        <div><dt>美聯平均實用呎價</dt><dd>${e.mid_avg ? '$' + fmt(e.mid_avg) : '—'}</dd></div>
+        <div><dt>近期成交呎價</dt><dd>${st.net_ft_price ? '$' + fmt(st.net_ft_price) + `（${st.tx_count} 宗${st.net_ft_price_chg != null ? '，' + (st.net_ft_price_chg > 0 ? '+' : '') + fmt(st.net_ft_price_chg, 1) + '%' : ''}）` : '—'}</dd></div>
+      </dl>
+      <div>
+        <h3 class="muted" style="font-size:var(--text-xs);font-weight:500;margin-bottom:var(--space-2)">近期成交（美聯資料）</h3>
+        <div class="table-wrap"><table class="tbl"><thead><tr><th>單位</th><th class="num">實用</th><th class="num">間隔</th><th class="num">成交價</th><th class="num">呎價</th></tr></thead><tbody>${sold || '<tr><td colspan="5" class="muted">暫無資料</td></tr>'}</tbody></table></div>
+      </div>
+    </div>
+  </article>`;
+  $('[data-goto2]').onclick = () => { $('#f-estate').value = id; $('#f-max').value = 500; shown = 60; renderListings(); location.hash = '#listings'; };
+  $('#est-detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/* ---------- 按揭計算 ---------- */
+function stampDuty(p) { // 第2標準（2026年2月26日起）
+  const B = [[4e6, null], [4323780, x => 100 + .2 * (x - 4e6)], [4.5e6, x => x * .015], [4935480, x => 67500 + .1 * (x - 4.5e6)], [6e6, x => x * .0225],
+    [6642860, x => 135000 + .1 * (x - 6e6)], [9e6, x => x * .03], [10080000, x => 270000 + .1 * (x - 9e6)], [2e7, x => x * .0375],
+    [21739120, x => 750000 + .1 * (x - 2e7)], [1e8, x => x * .0425], [109574470, x => 4250000 + .3 * (x - 1e8)], [Infinity, x => x * .065]];
+  if (p <= 4e6) return 100;
+  for (const [cap, f] of B) if (f && p <= cap) return Math.ceil(f(p));
+  return Math.ceil(p * .065);
+}
+const pmt = (P, r, n) => r === 0 ? P / n : P * (r / 12) / (1 - Math.pow(1 + r / 12, -n));
+function initCalc() {
+  $('#calc').addEventListener('input', ev => {
+    if (ev.target.id === 'c-plan' && ev.target.value !== 'custom') $('#c-rate').value = ev.target.value;
+    if (ev.target.id === 'c-rate') $('#c-plan').value = [...$('#c-plan').options].some(o => o.value === ev.target.value) ? ev.target.value : 'custom';
+    calc();
+  });
+  calc();
+}
+function calc() {
+  if (!$('#c-price')) return;
+  const price = (+$('#c-price').value || 0) * 1e4;
+  const type = ($('[name=c-type]:checked') || {}).value;
+  let ltv = type === 'mip' ? .9 : type === 'mip8' ? .8 : .7;
+  const notes = [];
+  if (type !== 'std' && price > 1e7) { ltv = .7; notes.push('樓價超過 1,000萬，按保 9 成不適用，改以 7 成計。'); }
+  const rate = (+$('#c-rate').value || 0) / 100, yrs = +$('#c-years').value, n = yrs * 12;
+  const inc = +$('#c-income').value || 0, debt = +$('#c-debt').value || 0, agentPct = (+$('#c-agent').value || 0) / 100, rent = +$('#c-rent').value || 0;
+  const loan = Math.round(price * ltv), down = price - loan, pay = pmt(loan, rate, n);
+  const sd = stampDuty(price), agent = price * agentPct, legal = 10000;
+  const cash = down + sd + agent + legal;
+  const dsr = inc ? (pay + debt) / inc : null;
+  $('#o-pay').textContent = money(pay);
+  $('#o-pay-sub').textContent = `貸款 ${money(loan)}（${Math.round(ltv * 100)}%）· ${fmt(rate * 100, 2)}% · ${yrs} 年`;
+  const box = (l, v, d = '') => `<div class="kpi"><span class="l">${l}</span><span class="v">${v}</span><span class="d">${d}</span></div>`;
+  const interest = pay * n - loan;
+  const items = [
+    box('首期', money(down), `樓價 ${100 - Math.round(ltv * 100)}%`),
+    box('印花稅', money(sd), price ? fmt(sd / price * 100, 2) + '% 樓價' : ''),
+    box('代理佣金＋律師費', money(agent + legal), '律師費以約 $10,000 估算'),
+    box('入市現金合計', money(cash), '未計按保保費及裝修'),
+    box('DSR', dsr == null ? '—' : `<span class="${dsr <= .5 ? 'ok' : 'bad'}">${fmt(dsr * 100, 1)}%</span>`, dsr == null ? '輸入月入計算' : dsr <= .5 ? '符合 50% 上限' : '超出 50% 上限'),
+    box('總利息', money(interest), `供滿 ${yrs} 年`)
+  ];
+  if (rent) {
+    const gy = rent * 12 / price * 100;
+    items.push(box('租金回報（毛）', fmt(gy, 2) + '%', `月租減供款 ${money(rent - pay)}`));
+  }
+  $('#o-grid').innerHTML = items.join('') + (notes.length ? `<p class="note" style="grid-column:1/-1">${notes.join(' ')}</p>` : '');
+  const rows = [0, 1, 2].map(add => {
+    const r = rate + add / 100, p = pmt(loan, r, n), need = (p + debt) / .5, d = inc ? (p + debt) / inc : null;
+    return `<tr><td>${fmt(r * 100, 2)}%${add ? `（+${add} 厘）` : '（現時）'}</td><td class="num">${money(p)}</td><td class="num">${d == null ? '—' : `<span class="${d <= .5 ? 'ok' : 'bad'}">${fmt(d * 100, 1)}%</span>`}</td><td class="num">${money(need)}</td></tr>`;
+  });
+  $('#o-sens tbody').innerHTML = rows.join('');
+  $('#o-sd-text').textContent = `樓價 ${wan(price / 1e4)} 嘅印花稅為 ${money(sd)}。` + (price > 4e6 && price <= 4323780 ? '剛過 400萬，屬 20% 邊際寬免區，每多 1 萬樓價多付 $2,000 稅。' : price <= 4e6 ? '400萬或以下只需 $100。' : '');
+}
+})();

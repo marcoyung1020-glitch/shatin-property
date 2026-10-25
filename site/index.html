@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="zh-HK">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>沙田睇樓平台｜樓市追蹤・放盤整合・按揭計算</title>
+<meta name="description" content="沙田市中心、第一城、石門 15 個屋苑放盤整合，連中原 CCL、差估署指數、土地註冊處登記、HIBOR 及按揭計算機。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%230b5f63%22/%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" defer></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">跳到內容</a>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="#market" aria-label="沙田睇樓平台 主頁">
+      <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="2" width="28" height="28" rx="6" fill="var(--color-primary)"/><path d="M8 22 V13 L16 8 L24 13 V22" fill="none" stroke="#fff" stroke-width="2.4" stroke-linejoin="round"/><path d="M6 25 Q11 21.5 16 25 T26 25" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>
+      <span>沙田睇樓平台</span>
+    </a>
+    <nav class="tabs" aria-label="主要分頁">
+      <a href="#market" data-tab="market">市場追蹤</a>
+      <a href="#listings" data-tab="listings">放盤</a>
+      <a href="#estates" data-tab="estates">屋苑比較</a>
+      <a href="#calc" data-tab="calc">按揭計算</a>
+    </nav>
+    <div class="stamp" id="stamp">載入中…</div>
+  </div>
+</header>
+
+<main id="main">
+<!-- 市場追蹤 -->
+<section class="view" id="view-market" aria-labelledby="h-market">
+  <div class="view-head">
+    <h1 id="h-market">市場追蹤</h1>
+    <p class="muted">樓價、成交、息口，一頁睇晒。</p>
+  </div>
+  <div class="kpis" id="kpis"></div>
+
+  <div class="grid-2">
+    <article class="card">
+      <div class="card-head">
+        <h2>中原城市領先指數 CCL</h2>
+        <div class="seg" role="group" aria-label="CCL 時間範圍">
+          <button data-ccl="52">1年</button><button data-ccl="156" class="on">3年</button><button data-ccl="9999">全部</button>
+        </div>
+      </div>
+      <div class="chart"><canvas id="c-ccl" aria-label="CCL 走勢圖"></canvas></div>
+      <p class="note">每週五公佈，反映上一週簽約成交。來源：<a href="https://hk.centanet.com/CCI/index" target="_blank" rel="noopener">中原地產 CCL</a></p>
+    </article>
+    <article class="card">
+      <div class="card-head"><h2>1 個月 HIBOR 對 H按封頂</h2></div>
+      <div class="chart"><canvas id="c-hibor" aria-label="HIBOR 走勢圖"></canvas></div>
+      <p class="note">H按 = 1M HIBOR + 1.3%，封頂 P − 1.75% = 3.25%。來源：<a href="https://www.hkab.org.hk/tc/rates/hibor" target="_blank" rel="noopener">香港銀行公會</a></p>
+    </article>
+    <article class="card">
+      <div class="card-head"><h2>每月住宅買賣登記</h2></div>
+      <div class="chart"><canvas id="c-lr" aria-label="土地註冊處登記圖"></canvas></div>
+      <p class="note">住宅買賣合約宗數（棒）及總值（線，億元）。來源：<a href="https://www.landreg.gov.hk/tc/monthly/agreement.htm" target="_blank" rel="noopener">土地註冊處</a></p>
+    </article>
+    <article class="card">
+      <div class="card-head"><h2>差估署樓價及租金指數</h2></div>
+      <div class="chart"><canvas id="c-rvd" aria-label="差估署指數圖"></canvas></div>
+      <p class="note">1999 = 100，所有類別住宅，按月。來源：<a href="https://www.rvd.gov.hk/tc/publications/property_market_statistics.html" target="_blank" rel="noopener">差餉物業估價署</a></p>
+    </article>
+  </div>
+
+  <article class="card">
+    <div class="card-head"><h2>按揭計劃速覽</h2><span class="tag">2026年10月</span></div>
+    <div class="table-wrap">
+    <table class="tbl">
+      <thead><tr><th>計劃</th><th>計法</th><th class="num">現時實際息率</th><th>重點</th></tr></thead>
+      <tbody>
+        <tr><td>大行 H按</td><td>1M HIBOR + 1.3%，封頂 P − 1.75%</td><td class="num" id="r-h">3.25%</td><td>P = 5%（滙豐、中銀、恒生），封頂息 3.25%</td></tr>
+        <tr><td>中銀 特優先P後H</td><td>首 2–3 年 P − 2.32%，之後轉 H按</td><td class="num">2.68%</td><td>2026年12月31日前申請；2026年11月1日至2027年4月30日提款</td></tr>
+        <tr><td>滙豐／恒生 定息</td><td>3 年定息（滙豐另有 5 年）</td><td class="num">2.93%</td><td>鎖定供款，提早贖回或有罰息</td></tr>
+        <tr><td>按揭證券公司 定息</td><td>10／15／20 年定息</td><td class="num">4.25／4.40／4.55%</td><td>長期鎖息，息率較高</td></tr>
+        <tr><td>按揭保險計劃</td><td>樓價 ≤1,000萬，首置受薪最高 9 成</td><td class="num">—</td><td>非首置或非自住一般 7 成；DSR 上限 50%</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="note">資料來源：<a href="https://dw-media.wenweipo.com/epaper/tkp/20261004/A14_Screen.pdf" target="_blank" rel="noopener">大公報 2026年10月4日</a>、<a href="https://finkit.hk/learn/mortgage/boc-p-then-h-mortgage-2026" target="_blank" rel="noopener">FinKit 中銀先P後H</a>、<a href="https://www.syfe.com/hk/magazine/zh-hant/%E6%9C%80-%E5%84%AA%E6%83%A0-%E5%88%A9%E7%8E%87/" target="_blank" rel="noopener">Syfe 最優惠利率</a>、<a href="https://www.midland.com.hk/zh-hk/property-news/%E6%A5%AD%E4%B8%BB%E8%B2%BC%E5%A3%AB/hong-kong-mortgage-insurance-programme-g4/" target="_blank" rel="noopener">美聯 按保計劃</a>、<a href="https://finkit.hk/learn/mortgage/stress-test" target="_blank" rel="noopener">FinKit 壓測暫停</a>。實際條款以銀行報價為準。</p>
+  </article>
+</section>
+
+<!-- 放盤 -->
+<section class="view" id="view-listings" aria-labelledby="h-listings" hidden>
+  <div class="view-head">
+    <h1 id="h-listings">放盤整合</h1>
+    <p class="muted" id="list-sub"></p>
+  </div>
+  <form class="filters card" id="filters" onsubmit="return false">
+    <label>屋苑
+      <select id="f-estate"><option value="">全部 15 個屋苑</option></select>
+    </label>
+    <label>售價上限（萬）
+      <input id="f-max" type="number" inputmode="numeric" min="100" step="10" value="500">
+    </label>
+    <label>房數
+      <select id="f-rooms"><option value="">不限</option><option value="0">開放式</option><option value="1">1房</option><option value="2">2房</option><option value="3">3房或以上</option></select>
+    </label>
+    <label>實用面積下限（呎）
+      <input id="f-area" type="number" inputmode="numeric" min="0" step="10" placeholder="例如 300">
+    </label>
+    <label>呎價上限
+      <input id="f-psf" type="number" inputmode="numeric" min="0" step="100" placeholder="例如 15000">
+    </label>
+    <label>排序
+      <select id="f-sort"><option value="p">售價 低至高</option><option value="f">呎價 低至高</option><option value="a">面積 大至細</option><option value="d">最新更新</option></select>
+    </label>
+    <fieldset class="srcs"><legend>來源</legend>
+      <label class="chk"><input type="checkbox" value="midland" checked>美聯</label>
+      <label class="chk"><input type="checkbox" value="centanet" checked>中原</label>
+      <label class="chk"><input type="checkbox" value="ricacorp" checked>利嘉閣</label>
+      <label class="chk"><input type="checkbox" value="28hse" checked>28Hse</label>
+      <label class="chk"><input type="checkbox" value="house730" checked>House730</label>
+    </fieldset>
+    <label class="chk merge"><input type="checkbox" id="f-merge" checked>合併疑似同一單位</label>
+  </form>
+  <div class="result-bar"><span id="res-count"></span><span class="muted" id="res-note"></span></div>
+  <div class="table-wrap list-wrap">
+    <table class="tbl listing" id="tbl-list">
+      <thead><tr><th>屋苑／座數</th><th class="num">售價</th><th class="num">實用</th><th class="num">呎價</th><th>間隔</th><th>樓層</th><th>來源</th><th>特色</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div class="pager"><button id="more" class="btn ghost">顯示更多</button></div>
+  <p class="note">美聯、中原、利嘉閣為全部放盤；28Hse 及 House730 只收錄首頁放盤，完整數量見「屋苑比較」頁連結。「合併」以屋苑＋面積＋房數＋樓層判斷，只作參考，睇樓前請向代理核實。</p>
+</section>
+
+<!-- 屋苑比較 -->
+<section class="view" id="view-estates" aria-labelledby="h-estates" hidden>
+  <div class="view-head">
+    <h1 id="h-estates">屋苑比較</h1>
+    <p class="muted">放盤中位呎價、租金回報及各平台盤源。</p>
+  </div>
+  <div class="table-wrap">
+    <table class="tbl" id="tbl-est">
+      <thead><tr>
+        <th data-k="name">屋苑</th><th data-k="op">入伙</th><th data-k="flats" class="num">伙數</th><th>港鐵</th>
+        <th data-k="med_psf" class="num sortable">放盤中位呎價</th><th data-k="med_price" class="num sortable">中位售價</th>
+        <th data-k="u500" class="num sortable">≤500萬放盤</th><th data-k="rent_psf" class="num sortable">租金呎租</th><th data-k="yield_" class="num sortable">租金回報</th>
+        <th>各平台盤數</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <p class="note">呎價及售價以美聯、中原、利嘉閣放盤計算；「≤500萬放盤」計 5 個平台記錄（未扣除重複盤）。租金回報 = 中位呎租 × 12 ÷ 中位呎價，未計差餉、管理費及空置期。屋苑資料來自<a href="https://www.midland.com.hk/zh-hk/" target="_blank" rel="noopener">美聯物業</a>。</p>
+  <div id="est-detail"></div>
+</section>
+
+<!-- 按揭計算 -->
+<section class="view" id="view-calc" aria-labelledby="h-calc" hidden>
+  <div class="view-head">
+    <h1 id="h-calc">按揭計算機</h1>
+    <p class="muted">供款、首期、印花稅及入息要求。</p>
+  </div>
+  <div class="calc">
+    <form class="card calc-in" id="calc" onsubmit="return false">
+      <label>樓價（萬）<input id="c-price" type="number" inputmode="decimal" min="50" step="5" value="450"></label>
+      <fieldset><legend>買家類別</legend>
+        <label class="chk"><input type="radio" name="c-type" value="mip" checked>首置受薪（按保 9 成）</label>
+        <label class="chk"><input type="radio" name="c-type" value="mip8">按保 8 成</label>
+        <label class="chk"><input type="radio" name="c-type" value="std">一般／投資（7 成）</label>
+      </fieldset>
+      <label>按揭計劃
+        <select id="c-plan">
+          <option value="3.25">大行 H按（封頂 3.25%）</option>
+          <option value="2.68">中銀 特優先P後H（首段 2.68%）</option>
+          <option value="2.93">滙豐／恒生 3年定息（2.93%）</option>
+          <option value="4.25">按揭證券公司 10年定息（4.25%）</option>
+          <option value="custom">自訂息率</option>
+        </select>
+      </label>
+      <label>息率（%）<input id="c-rate" type="number" inputmode="decimal" step="0.01" min="0" value="3.25"></label>
+      <label>還款年期
+        <select id="c-years"><option>30</option><option>25</option><option>20</option><option>15</option><option>10</option></select>
+      </label>
+      <label>家庭每月入息（元）<input id="c-income" type="number" inputmode="numeric" step="1000" min="0" value="60000"></label>
+      <label>其他每月債務供款（元）<input id="c-debt" type="number" inputmode="numeric" step="500" min="0" value="0"></label>
+      <label>代理佣金（%）<input id="c-agent" type="number" inputmode="decimal" step="0.25" min="0" value="1"></label>
+      <label>每月租金（作投資比較，元）<input id="c-rent" type="number" inputmode="numeric" step="500" min="0" placeholder="例如 15000"></label>
+    </form>
+    <div class="calc-out">
+      <div class="card hero-out">
+        <div class="lbl">每月供款</div>
+        <div class="big" id="o-pay">—</div>
+        <div class="sub" id="o-pay-sub"></div>
+      </div>
+      <div class="out-grid" id="o-grid"></div>
+      <article class="card">
+        <h2>入息與利率敏感度</h2>
+        <div class="table-wrap"><table class="tbl" id="o-sens"><thead><tr><th>息率</th><th class="num">每月供款</th><th class="num">DSR</th><th class="num">50% DSR 所需月入</th></tr></thead><tbody></tbody></table></div>
+        <p class="note">金管局自 2024年2月28日起暫停「加 2 厘」壓力測試，現時硬性要求為 DSR ≤ 50%；表中 +1 / +2 厘只供自我評估。來源：<a href="https://finkit.hk/learn/mortgage/stress-test" target="_blank" rel="noopener">FinKit</a>、<a href="https://www.bowtie.com.hk/blog/zh/%E7%A7%9F%E6%A8%93%E7%BD%AE%E6%A5%AD/%E6%8C%89%E6%8F%AD-%E5%A3%93%E5%8A%9B%E6%B8%AC%E8%A9%A6/" target="_blank" rel="noopener">Bowtie</a></p>
+      </article>
+      <article class="card">
+        <h2>印花稅（第2標準）</h2>
+        <p class="muted" id="o-sd-text"></p>
+        <p class="note">≤400萬：$100；400萬至約432萬以 20% 邊際寬免計；之後按級數 1.5%–4.25%。來源：<a href="https://www.gov.hk/tc/residents/taxes/stamp/stamp_duty_rates.htm" target="_blank" rel="noopener">GovHK 印花稅收費</a>。按保保費另計，可用<a href="https://www.hkmc.com.hk/chi/our_business/mortgage_insurance_programme.html" target="_blank" rel="noopener">按揭證券公司</a>計算機查詢。</p>
+      </article>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer class="foot">
+  <p>資料只供參考，不構成投資建議。放盤資料屬快照，以各平台最新資料為準。</p>
+  <p>數據來源：<a href="https://hk.centanet.com/CCI/index" target="_blank" rel="noopener">中原地產</a> · <a href="https://www.rvd.gov.hk/tc/publications/property_market_statistics.html" target="_blank" rel="noopener">差估署</a> · <a href="https://www.landreg.gov.hk/tc/monthly/agreement.htm" target="_blank" rel="noopener">土地註冊處</a> · <a href="https://www.hkab.org.hk/tc/rates/hibor" target="_blank" rel="noopener">銀行公會</a> · <a href="https://www.midland.com.hk/zh-hk/" target="_blank" rel="noopener">美聯</a> · <a href="https://www.ricacorp.com/zh-hk/" target="_blank" rel="noopener">利嘉閣</a> · <a href="https://www.28hse.com/" target="_blank" rel="noopener">28Hse</a> · <a href="https://www.house730.com/" target="_blank" rel="noopener">House730</a></p>
+</footer>
+</body>
+</html>
