@@ -3,7 +3,7 @@
 import json, os, re, statistics as st
 D = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "site", "data")
 J = lambda n: json.load(open(os.path.join(D, n), encoding="utf-8"))
-m, E, LA, LP = J("market.json"), J("estates.json"), J("listings_agency.json"), J("listings_portal.json")
+m, E, LA = J("market.json"), J("estates.json"), J("listings_agency.json")
 
 # CCL：用官方完整日期序列由尾對齊分區數值
 cd = (m.get("ccl_latest", {}).get("ccl", {}) or {}).pop("chartData", None)
@@ -44,12 +44,6 @@ for x in LA:
                   r=x.get("rooms"), b=x.get("bldg") or "", fl=x.get("floor") or "", d=x.get("updated") or "",
                   t=x.get("tags") or [], u=x.get("url") or "", ls=x.get("lease")))
     L[-1]["pd"], L[-1]["pq"] = stamp(f'{x["src"]}:{x.get("ref") or x.get("url")}', x.get("pub"), "exact")
-for x in LP["listings"]:
-    if not x.get("price"): continue
-    L.append(dict(s=x["source"], e=name2id[x["estate"]], p=x["price"], a=x.get("area"), f=x.get("psf"),
-                  r=x.get("rooms"), b=x.get("building") or "", fl=x.get("floor") or "", d="",
-                  t=[x["agency"]] if x.get("agency") else ([x["title"]] if x.get("title") else []), u=x["url"], ls=False, o=x.get("owner")))
-    L[-1]["pd"], L[-1]["pq"] = stamp(f'{x["source"]}:{x["estate"]}|{x.get("building")}|{x.get("floor")}|{x.get("area")}|{x.get("rooms")}', x.get("pub"), "day")
 # 剔除車位、舖位及資料不全
 def ok(x):
     txt = " ".join([x["b"]] + list(x["t"]))
@@ -73,9 +67,8 @@ for e in E:
     meta = e["meta"]
     op = meta.get("op_date") or ""
     yrs = sorted(set(re.findall(r"(\d{4})年", op)))
-    tot = LP["totals"].get(e["name"], {})
     ES.append(dict(id=e["id"], name=e["name"], area=e["area"],
-        counts=e["counts"] | {"house730": (tot.get("house730") or {}).get("total"), "28hse": (tot.get("28hse") or {}).get("total")},
+        counts=e["counts"],
         med_psf=round(med_psf) if med_psf else None, min_price=min(price) if price else None,
         med_price=round(st.median(price), 1) if price else None,
         u500=sum(1 for x in mine if x["p"] <= 500),
@@ -88,9 +81,9 @@ for e in E:
         school=((meta.get("school_net") or {}).get("primary") or {}).get("id") if isinstance(meta.get("school_net"), dict) else None,
         mid_avg=meta.get("avg_net_ft_price"), stat=meta.get("market_stat"), sold=(meta.get("recent_sold") or [])[:5],
         lat=meta.get("latitude"), lng=meta.get("longitude"),
-        links=e["links"] | {"h28": (tot.get("28hse") or {}).get("url"), "h730": (tot.get("house730") or {}).get("url")}))
+        links=e["links"]))
 json.dump(SEEN, open(SEENF, "w"), ensure_ascii=False)
-out = dict(generated=m.get("generated"), listings_generated=LP.get("generated"), market=m, estates=ES, listings=L)
+out = dict(generated=m.get("generated"), listings_generated=m.get("generated"), market=m, estates=ES, listings=L)
 json.dump(out, open(os.path.join(D, "app.json"), "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
 print(len(L), os.path.getsize(os.path.join(D, "app.json")))
 for e in ES: print(e["name"], e["med_psf"], e["rent_psf"], e["yield_"], e["u500"], e["op_year"], e["counts"])

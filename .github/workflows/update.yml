@@ -1,0 +1,50 @@
+name: 每日更新
+
+on:
+  schedule:
+    - cron: "0 14 * * *"   # 每晚 10:00（香港時間）
+  workflow_dispatch:        # 可喺 Actions 頁面手動執行
+  push:
+    branches: [main]
+    paths: ["site/**"]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 收集及整合資料
+        if: github.event_name != 'push'
+        env:
+          TZ: Asia/Hong_Kong
+        run: bash scripts/update.sh
+      - name: 儲存最新資料
+        if: github.event_name != 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A site/data data
+          git diff --cached --quiet || git commit -m "自動更新 $(TZ=Asia/Hong_Kong date '+%Y-%m-%d %H:%M')"
+          git push
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}

@@ -6,7 +6,7 @@ const fmt = (n, d = 0) => n == null || isNaN(n) ? '—' : Number(n).toLocaleStri
 const money = n => '$' + fmt(Math.round(n));
 const wan = n => fmt(n, n % 1 ? 1 : 0) + '萬';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const SRC = { midland: '美聯', centanet: '中原', ricacorp: '利嘉閣', '28hse': '28Hse', house730: 'House730' };
+const SRC = { midland: '美聯', centanet: '中原', ricacorp: '利嘉閣' };
 const H_CAP = 3.25, H_SPREAD = 1.3;
 let DATA, EST = {}, charts = {};
 
@@ -121,7 +121,7 @@ function initListings() {
   const q = new URLSearchParams((location.hash.split('?')[1]) || '');
   if (q.get('e')) sel.value = q.get('e');
   const n = DATA.listings.length;
-  $('#list-sub').textContent = `${n.toLocaleString()} 條放盤記錄 · 5 個平台 · 15 個屋苑`;
+  $('#list-sub').textContent = `${n.toLocaleString()} 條放盤記錄 · 3 間代理 · 15 個屋苑`;
   renderListings();
 }
 function filtered() {
@@ -206,8 +206,7 @@ function firstCell(y, multi) {
   const date = `${mo}月${da}日`;
   let main, note;
   if (y.pq === 'exact') { main = `${date} ${tt}`; note = daysAgo(y.pd); }
-  else if (y.pq === 'day') { main = `約${date}`; note = '約' + daysAgo(y.pd); }
-  else if (y.pq === 'base') { main = `${date}前`; note = '開始追蹤前已放盤'; }
+    else if (y.pq === 'base') { main = `${date}前`; note = '開始追蹤前已放盤'; }
   else { main = `${date} ${tt || ''}`.trim(); note = '本平台首次收錄'; }
   const by = multi ? `最早：${SRC[y.s]}` : '';
   return `<span class="first-date">${main}</span><span class="sub2">${[note, by].filter(Boolean).join(' · ')}</span>`;
@@ -225,7 +224,7 @@ function renderEstates() {
   $$('#tbl-est th').forEach(th => th.classList.toggle('sorted', th.dataset.k === estSort));
   $('#tbl-est tbody').innerHTML = E.map(e => {
     const c = e.counts, L = e.links;
-    const lk = (k, lab, n) => L[k] ? `<a class="src s-${k === 'h28' ? '28hse' : k === 'h730' ? 'house730' : k}" href="${esc(L[k])}" target="_blank" rel="noopener"><i></i>${lab} ${n ?? '—'}</a>` : '';
+    const lk = (k, lab, n) => L[k] ? `<a class="src s-${k}" href="${esc(L[k])}" target="_blank" rel="noopener"><i></i>${lab} ${n ?? '—'}</a>` : '';
     const mtr = (e.mtr || []).map(a => `${esc(a.name)}${a.walking_minute ? ' ' + a.walking_minute + '分鐘' : ''}`).join('<br>') || '—';
     return `<tr class="est-row" data-id="${e.id}" tabindex="0">
       <td><span class="est-name">${esc(e.name)}</span><span class="sub2">${esc(e.area)}</span></td>
@@ -237,7 +236,7 @@ function renderEstates() {
       <td class="num"><a href="#listings?e=${e.id}" data-goto="${e.id}">${e.u500}</a></td>
       <td class="num">${e.rent_psf ? '$' + fmt(e.rent_psf, 1) : '—'}</td>
       <td class="num">${e.yield_ ? fmt(e.yield_, 2) + '%' : '—'}</td>
-      <td style="min-width:260px">${lk('midland', '美聯', c.midland)}${lk('centanet', '中原', c.centanet)}${lk('ricacorp', '利嘉閣', c.ricacorp)}${lk('h28', '28Hse', c['28hse'])}${lk('h730', 'House730', c.house730)}</td>
+      <td style="min-width:260px">${lk('midland', '美聯', c.midland)}${lk('centanet', '中原', c.centanet)}${lk('ricacorp', '利嘉閣', c.ricacorp)}</td>
     </tr>`;
   }).join('');
   $$('.est-row').forEach(r => {
