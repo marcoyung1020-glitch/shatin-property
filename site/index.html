@@ -109,7 +109,13 @@
       <input id="f-psf" type="number" inputmode="numeric" min="0" step="100" placeholder="例如 15000">
     </label>
     <label>排序
-      <select id="f-sort"><option value="p">售價 低至高</option><option value="f">呎價 低至高</option><option value="a">面積 大至細</option><option value="pd">最新放盤</option><option value="d">最近更新</option></select>
+      <select id="f-sort">
+        <option value="p:asc">售價 低至高</option><option value="p:desc">售價 高至低</option>
+        <option value="f:asc">呎價 低至高</option><option value="f:desc">呎價 高至低</option>
+        <option value="a:desc">實用 大至細</option><option value="a:asc">實用 細至大</option>
+        <option value="pd:desc">首次出現 新至舊</option><option value="pd:asc">首次出現 舊至新</option>
+        <option value="d:desc">最近更新</option>
+      </select>
     </label>
     <fieldset class="srcs"><legend>來源</legend>
       <label class="chk"><input type="checkbox" value="midland" checked>美聯</label>
@@ -122,7 +128,7 @@
   <div class="result-bar"><span id="res-count"></span><span class="muted" id="res-note"></span></div>
   <div class="table-wrap list-wrap">
     <table class="tbl listing" id="tbl-list">
-      <thead><tr><th>屋苑／座數</th><th class="num">售價</th><th class="num">實用</th><th class="num">呎價</th><th>間隔</th><th>樓層</th><th>首次出現</th><th>來源</th><th>特色</th><th></th></tr></thead>
+      <thead><tr><th>屋苑／座數</th><th class="num" data-sort="p" aria-sort="none"><button type="button" class="th-sort">售價<span class="arr" aria-hidden="true"></span></button></th><th class="num" data-sort="a" aria-sort="none"><button type="button" class="th-sort">實用<span class="arr" aria-hidden="true"></span></button></th><th class="num" data-sort="f" aria-sort="none"><button type="button" class="th-sort">呎價<span class="arr" aria-hidden="true"></span></button></th><th>間隔</th><th>樓層</th><th data-sort="pd" aria-sort="none"><button type="button" class="th-sort">首次出現<span class="arr" aria-hidden="true"></span></button></th><th>來源</th><th>特色</th><th></th></tr></thead>
       <tbody></tbody>
     </table>
   </div>

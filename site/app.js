@@ -118,6 +118,13 @@ function initListings() {
   DATA.estates.forEach(e => sel.insertAdjacentHTML('beforeend', `<option value="${e.id}">${esc(e.name)}（${esc(e.area)}）</option>`));
   $('#filters').addEventListener('input', () => { shown = 60; renderListings(); });
   $('#more').onclick = () => { shown += 60; renderListings(); };
+  // 撳表頭排序；再撳一次倒轉
+  const first = { p: 'asc', f: 'asc', a: 'desc', pd: 'desc' };
+  $$('#tbl-list th[data-sort] button').forEach(b => b.onclick = () => {
+    const k = b.parentElement.dataset.sort, [ck, cd] = $('#f-sort').value.split(':');
+    const d = ck === k ? (cd === 'asc' ? 'desc' : 'asc') : first[k];
+    $('#f-sort').value = `${k}:${d}`; shown = 60; renderListings();
+  });
   const q = new URLSearchParams((location.hash.split('?')[1]) || '');
   if (q.get('e')) sel.value = q.get('e');
   const n = DATA.listings.length;
@@ -161,8 +168,20 @@ function renderListings() {
   // 首次出現：同一單位取各網站最早嘅日期
   const rank = y => (y.pq === 'base' ? '~' : '') + (y.pd || '9');
   rows.forEach(x => { x.first = x.all.reduce((m, y) => (!m || rank(y) < rank(m)) ? y : m, null); });
-  const key = $('#f-sort').value;
-  rows.sort((a, b) => key === 'a' ? (b.a || 0) - (a.a || 0) : key === 'd' ? (b.d || '').localeCompare(a.d || '') : key === 'pd' ? sortPd(b).localeCompare(sortPd(a)) : key === 'f' ? (a.f || 1e9) - (b.f || 1e9) : a.p - b.p);
+  const [key, dir] = $('#f-sort').value.split(':');
+  const sgn = dir === 'asc' ? 1 : -1;
+  const val = x => key === 'p' ? x.p : key === 'a' ? x.a : key === 'f' ? x.f : key === 'pd' ? sortPd(x) : x.d;
+  rows.sort((a, b) => {
+    const va = val(a), vb = val(b);
+    const ea = va == null || va === '', eb = vb == null || vb === '';
+    if (ea || eb) return ea - eb;  // 冇資料嘅永遠排最後
+    return (typeof va === 'string' ? va.localeCompare(vb) : va - vb) * sgn || a.p - b.p;
+  });
+  $$('#tbl-list th[data-sort]').forEach(th => {
+    const on = th.dataset.sort === key;
+    th.setAttribute('aria-sort', on ? (dir === 'asc' ? 'ascending' : 'descending') : 'none');
+    th.querySelector('.arr').textContent = on ? (dir === 'asc' ? ' ↑' : ' ↓') : '';
+  });
   $('#res-count').textContent = merge ? `${rows.length} 個單位（${L.length} 條放盤）` : `${rows.length} 條放盤`;
   const ps = L.map(x => x.f).filter(Boolean).sort((a, b) => a - b);
   $('#res-note').textContent = ps.length ? `中位呎價 $${fmt(ps[Math.floor(ps.length / 2)])}` : '';
@@ -199,13 +218,17 @@ function daysAgo(pd) {
   const now = new Date(DATA.listings_generated || Date.now());
   const d = new Date(pd.length === 10 ? pd + 'T12:00:00+08:00' : pd + ':00+08:00');
   const n = Math.max(0, Math.floor((now - d) / 864e5));
-  return n === 0 ? '今日' : n + '日前';
+  if (n === 0) return '今日';
+  if (n < 60) return n + '日前';
+  if (n < 730) return Math.round(n / 30.4) + '個月前';
+  return Math.floor(n / 365) + '年前';
 }
 function firstCell(y, multi) {
   if (!y || !y.pd) return '—';
   const [dd, tt] = y.pd.split('T');
-  const [, mo, da] = dd.split('-').map(Number);
-  const date = `${mo}月${da}日`;
+  const [yr, mo, da] = dd.split('-').map(Number);
+  const thisYr = new Date(DATA.listings_generated || Date.now()).getFullYear();
+  const date = `${yr !== thisYr ? yr + '年' : ''}${mo}月${da}日`;
   let main, note;
   if (y.pq === 'exact') { main = `${date} ${tt}`; note = daysAgo(y.pd); }
     else if (y.pq === 'base') { main = `${date}前`; note = '開始追蹤前已放盤'; }
