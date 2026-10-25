@@ -121,6 +121,8 @@ function initListings() {
   const q = new URLSearchParams((location.hash.split('?')[1]) || '');
   if (q.get('e')) sel.value = q.get('e');
   const n = DATA.listings.length;
+  const stale = Object.entries(DATA.status || {}).filter(([, v]) => !v.ok).map(([k, v]) => `${SRC[k]}（資料停留喺 ${(v.last_ok || '').replace('T', ' ')}）`);
+  if (stale.length) { const w = $('#stale-note'); w.hidden = false; w.textContent = `注意：今次更新讀唔到 ${stale.join('、')}，暫時顯示上次資料。`; }
   $('#list-sub').textContent = `${n.toLocaleString()} 條放盤記錄 · 3 間代理 · 15 個屋苑`;
   renderListings();
 }

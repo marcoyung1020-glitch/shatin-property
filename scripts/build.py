@@ -83,7 +83,8 @@ for e in E:
         lat=meta.get("latitude"), lng=meta.get("longitude"),
         links=e["links"]))
 json.dump(SEEN, open(SEENF, "w"), ensure_ascii=False)
-out = dict(generated=m.get("generated"), listings_generated=m.get("generated"), market=m, estates=ES, listings=L)
+STATUS = J("status.json") if os.path.exists(os.path.join(D, "status.json")) else {}
+out = dict(status=STATUS, generated=m.get("generated"), listings_generated=m.get("generated"), market=m, estates=ES, listings=L)
 json.dump(out, open(os.path.join(D, "app.json"), "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
 print(len(L), os.path.getsize(os.path.join(D, "app.json")))
 for e in ES: print(e["name"], e["med_psf"], e["rent_psf"], e["yield_"], e["u500"], e["op_year"], e["counts"])

@@ -59,6 +59,13 @@ def jget(url, **kw):
     return None
 
 
+def load_old(name):
+  try:
+    return json.load(open(os.path.join(OUT, name), encoding="utf-8"))
+  except Exception:
+    return None
+
+
 def save(name, obj):
   with open(os.path.join(OUT, name), "w", encoding="utf-8") as f:
     json.dump(obj, f, ensure_ascii=False, separators=(",", ":"))
@@ -127,6 +134,10 @@ def market():
   d = jget(f"{base}/monthly-statistical-bulletin/er-ir/hk-interbank-ir-endperiod?segment=hibor.fixing&pagesize=96&sortby=end_of_month&sortorder=desc")
   if d:
     m["hibor_monthly"] = [[r["end_of_month"], r.get("ir_1m"), r.get("ir_3m"), r.get("ir_12m")] for r in reversed(d["result"]["records"])]
+  old = load_old("market.json") or {}
+  for k, v in old.items():
+    if not m.get(k) and v:
+      print("  沿用舊資料:", k); m[k] = v
   save("market.json", m)
 
 
@@ -265,28 +276,60 @@ def ricacorp(est):
 
 
 def listings():
-  tok = midland_token()
+  """每個來源獨立處理：讀唔到（例如美聯擋海外 IP）就沿用上次資料，並記錄喺 status.json"""
+  oldL = load_old("listings_agency.json") or []
+  oldE = {e["id"]: e for e in (load_old("estates.json") or [])}
+  status = load_old("status.json") or {}
+  now = dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).strftime("%Y-%m-%dT%H:%M")
+  ok = {"midland": True, "centanet": True, "ricacorp": True}
+  try:
+    tok = midland_token()
+  except Exception as ex:
+    print("  美聯 token 失敗:", str(ex)[:80]); tok = None; ok["midland"] = False
   estates_out = []
   allL = []
   for e in ESTATES:
     print("==", e["name"])
-    mL, mR, meta, mN = midland(e, tok)
-    cL, cR, cN = centanet(e)
-    rL, rN = ricacorp(e)
-    print(f"  midland {len(mL)}  centanet {len(cL)}/{cN}  ricacorp {len(rL)}/{rN}")
-    for x in mL + cL + rL:
+    prev = oldE.get(e["id"], {})
+    keep = lambda src: [x for x in oldL if x["src"] == src and x.get("estate") == e["id"]]
+    pc = prev.get("counts", {})
+    mL = mR = None; meta = prev.get("meta", {}); mN = pc.get("midland")
+    if tok:
+      try:
+        mL, mR, meta, mN = midland(e, tok)
+      except Exception as ex:
+        print("  美聯失敗:", str(ex)[:80]); ok["midland"] = False
+    try:
+      cL, cR, cN = centanet(e)
+    except Exception as ex:
+      print("  中原失敗:", str(ex)[:80]); ok["centanet"] = False; cL, cR, cN = None, None, pc.get("centanet")
+    try:
+      rL, rN = ricacorp(e)
+    except Exception as ex:
+      print("  利嘉閣失敗:", str(ex)[:80]); ok["ricacorp"] = False; rL, rN = None, pc.get("ricacorp")
+    for x in (mL or []) + (cL or []) + (rL or []):
       x["estate"] = e["id"]
+    mL = keep("midland") if mL is None else mL
+    cL = keep("centanet") if cL is None else cL
+    rL = keep("ricacorp") if rL is None else rL
+    print(f"  midland {len(mL)}  centanet {len(cL)}/{cN}  ricacorp {len(rL)}/{rN}")
     allL += mL + cL + rL
-    rents = [r for r in mR + cR if r.get("rent") and r.get("area")]
+    if mR is None or cR is None:
+      rents = prev.get("rents", [])
+    else:
+      rents = [r for r in mR + cR if r.get("rent") and r.get("area")]
     estates_out.append(dict(id=e["id"], name=e["name"], area=e["area"], meta=meta, rents=rents,
                             counts=dict(midland=mN, centanet=cN, ricacorp=rN),
                             links=dict(
                               midland=f"https://www.midland.com.hk/zh-hk/list/buy/{up.quote(e['name'])}-E-{e['mid']}",
                               centanet=(f"https://hk.centanet.com/findproperty/list/buy/{up.quote(e['name'])}_{e['cen']}" if e.get("cen") else f"https://hk.centanet.com/findproperty/list/buy?q={up.quote(e['name'])}"),
-                              ricacorp=f"https://www.ricacorp.com/zh-hk/property/list/buy/{up.quote(e['ric'])}",
-                              h28=(f"https://www.28hse.com/buy/a3/dg44/c{e['h28']}" if e.get("h28") else None),
-                              h730=(f"https://www.house730.com/buy/e{e['h730']}/" if e.get("h730") else None))))
+                              ricacorp=f"https://www.ricacorp.com/zh-hk/property/list/buy/{up.quote(e['ric'])}")))
+  for k, v in ok.items():
+    st_ = status.setdefault(k, {})
+    st_["ok"] = v; st_["checked"] = now
+    if v: st_["last_ok"] = now
   json.dump(PUBCACHE, open(PUBF, "w"))
+  save("status.json", status)
   save("estates.json", estates_out)
   save("listings_agency.json", allL)
 

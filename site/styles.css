@@ -196,3 +196,4 @@ label.chk input { width: 16px; height: 16px; accent-color: var(--color-primary);
   .listing td.c-first .first-date, .listing td.c-first .sub2 { display: inline; color: var(--color-text-muted); }
   .listing td.c-first .sub2::before { content: ' · '; }
 }
+.stale-note { margin: 0 0 var(--space-3); padding: var(--space-2) var(--space-3); border-radius: var(--radius-md, 8px); background: #fff4e5; color: #7a4a00; font-size: var(--text-sm); }
