@@ -188,3 +188,11 @@ label.chk input { width: 16px; height: 16px; accent-color: var(--color-primary);
 @media (max-width: 860px) {
   #tbl-est th:first-child, #tbl-est td:first-child { position: sticky; left: 0; z-index: 1; background: var(--color-surface-2); box-shadow: 1px 0 0 var(--color-divider); }
 }
+.first-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.listing td.c-first .sub2 { white-space: nowrap; }
+@media (max-width: 560px) {
+  .listing td.c-first { grid-column: 1 / -1; font-size: var(--text-xs); color: var(--color-text-muted); }
+  .listing td.c-first .first-date::before { content: '首次出現 '; }
+  .listing td.c-first .first-date, .listing td.c-first .sub2 { display: inline; color: var(--color-text-muted); }
+  .listing td.c-first .sub2::before { content: ' · '; }
+}

@@ -5,10 +5,15 @@
 28Hse / House730 由 parse_portals.py 另行處理。
 """
 import json, re, subprocess, time, datetime as dt, csv, io, os, sys, urllib.parse as up
+from concurrent.futures import ThreadPoolExecutor
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "site", "data")
 os.makedirs(OUT, exist_ok=True)
+CACHE = os.path.join(ROOT, "data")
+os.makedirs(CACHE, exist_ok=True)
+PUBF = os.path.join(CACHE, "midland_first_pub.json")
+PUBCACHE = json.load(open(PUBF)) if os.path.exists(PUBF) else {}
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"
 
 ESTATES = [
@@ -153,6 +158,17 @@ def midland(est, tok):
                   facing=(r.get("orientation") or {}).get("name"), updated=(r.get("update_date") or "")[:10],
                   tags=[x["name"] for x in (r.get("misc") or {}).get("sell", [])][:4], url=r.get("url_desc"),
                   lease=bool(r.get("tenancy"))))
+  # 首次刊登日期：列表 API 冇提供，要讀放盤頁（有快取，只會讀新盤）
+  need = [x for x in L if x["ref"] and x["ref"] not in PUBCACHE and x.get("url")]
+  def getpub(x):
+    h = curl(x["url"], retries=2, timeout=30)
+    mm = re.search(r'"serial_no":"%s".{0,4000}?"first_pub_date":"([^"]+)"' % x["ref"], h, re.S) or re.search(r'"first_pub_date":"([^"]+)"', h)
+    return x["ref"], (mm.group(1) if mm else None)
+  with ThreadPoolExecutor(8) as ex:
+    for ref, d in ex.map(getpub, need):
+      if d: PUBCACHE[ref] = d
+  for x in L:
+    x["pub"] = PUBCACHE.get(x["ref"])
   R = [dict(rent=r.get("rent"), area=r.get("net_area")) for r in rents if r.get("rent")]
   # 屋苑資料
   name = up.quote(est["name"])
@@ -200,7 +216,7 @@ def centanet(est):
                   area=(x.get("areaInfo") or {}).get("nSize") or None, psf=(x.get("unitPriceInfo") or {}).get("nUnitPrice") or None,
                   rooms=x.get("bedroomCount"), bldg=((x.get("estateName")+" ") if x.get("bigEstateName") else "")+(x.get("buildingName") or ""), floor=x.get("yAxis"), facing=x.get("direction"),
                   updated=(x.get("updateDate") or "")[:10], tags=[v.get("name") for k, v in (x.get("displayLabel") or {}).items() if isinstance(v, dict) and v.get("show") and v.get("name")][:4],
-                  url=x.get("detailUrl"), lease=bool(x.get("withLease"))))
+                  url=x.get("detailUrl"), lease=bool(x.get("withLease")), pub=(x.get("publishDate") or None) and x["publishDate"] + "+08:00"))
   return L, rents, total
 
 
@@ -270,6 +286,7 @@ def listings():
                               ricacorp=f"https://www.ricacorp.com/zh-hk/property/list/buy/{up.quote(e['ric'])}",
                               h28=(f"https://www.28hse.com/buy/a3/dg44/c{e['h28']}" if e.get("h28") else None),
                               h730=(f"https://www.house730.com/buy/e{e['h730']}/" if e.get("h730") else None))))
+  json.dump(PUBCACHE, open(PUBF, "w"))
   save("estates.json", estates_out)
   save("listings_agency.json", allL)
 

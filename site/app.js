@@ -156,8 +156,11 @@ function renderListings() {
     });
     rows = [...g2.values()].map(arr => { arr.sort((a, b) => a.p - b.p); return { ...arr[0], all: arr }; });
   } else rows = L.map(x => ({ ...x, all: [x] }));
+  // 首次出現：同一單位取各網站最早嘅日期
+  const rank = y => (y.pq === 'base' ? '~' : '') + (y.pd || '9');
+  rows.forEach(x => { x.first = x.all.reduce((m, y) => (!m || rank(y) < rank(m)) ? y : m, null); });
   const key = $('#f-sort').value;
-  rows.sort((a, b) => key === 'a' ? (b.a || 0) - (a.a || 0) : key === 'd' ? (b.d || '').localeCompare(a.d || '') : key === 'f' ? (a.f || 1e9) - (b.f || 1e9) : a.p - b.p);
+  rows.sort((a, b) => key === 'a' ? (b.a || 0) - (a.a || 0) : key === 'd' ? (b.d || '').localeCompare(a.d || '') : key === 'pd' ? sortPd(b).localeCompare(sortPd(a)) : key === 'f' ? (a.f || 1e9) - (b.f || 1e9) : a.p - b.p);
   $('#res-count').textContent = merge ? `${rows.length} 個單位（${L.length} 條放盤）` : `${rows.length} 條放盤`;
   const ps = L.map(x => x.f).filter(Boolean).sort((a, b) => a - b);
   $('#res-note').textContent = ps.length ? `中位呎價 $${fmt(ps[Math.floor(ps.length / 2)])}` : '';
@@ -177,14 +180,37 @@ function renderListings() {
       <td class="num c-hide">${x.f ? '$' + fmt(x.f) : '—'}</td>
       <td class="c-hide">${rooms}</td>
       <td class="c-hide">${esc(x.fl) || '—'}</td>
+      <td class="c-first">${firstCell(x.first, x.all.length > 1)}</td>
       <td class="c-meta">${x.a ? fmt(x.a) + '呎' : ''} · ${x.f ? '$' + fmt(x.f) + '/呎' : ''} · ${rooms} · ${esc(x.fl)}</td>
       <td class="c-src">${srcs}</td>
       <td class="c-tags"><div class="chips">${tags}</div></td>
       <td class="c-act"><button class="btn ghost sm" data-calc="${x.p}">計按揭</button></td>
     </tr>`;
-  }).join('') || `<tr><td colspan="9" class="muted">冇符合條件嘅放盤，試下放寬篩選。</td></tr>`;
+  }).join('') || `<tr><td colspan="10" class="muted">冇符合條件嘅放盤，試下放寬篩選。</td></tr>`;
   $('#more').hidden = rows.length <= shown;
   $$('[data-calc]', tb).forEach(b => b.onclick = () => { $('#c-price').value = b.dataset.calc; location.hash = '#calc'; });
+}
+
+/* 首次出現日期 */
+const sortPd = x => (x.first && x.first.pq !== 'base' && x.first.pd) || '';
+function daysAgo(pd) {
+  const now = new Date(DATA.listings_generated || Date.now());
+  const d = new Date(pd.length === 10 ? pd + 'T12:00:00+08:00' : pd + ':00+08:00');
+  const n = Math.max(0, Math.floor((now - d) / 864e5));
+  return n === 0 ? '今日' : n + '日前';
+}
+function firstCell(y, multi) {
+  if (!y || !y.pd) return '—';
+  const [dd, tt] = y.pd.split('T');
+  const [, mo, da] = dd.split('-').map(Number);
+  const date = `${mo}月${da}日`;
+  let main, note;
+  if (y.pq === 'exact') { main = `${date} ${tt}`; note = daysAgo(y.pd); }
+  else if (y.pq === 'day') { main = `約${date}`; note = '約' + daysAgo(y.pd); }
+  else if (y.pq === 'base') { main = `${date}前`; note = '開始追蹤前已放盤'; }
+  else { main = `${date} ${tt || ''}`.trim(); note = '本平台首次收錄'; }
+  const by = multi ? `最早：${SRC[y.s]}` : '';
+  return `<span class="first-date">${main}</span><span class="sub2">${[note, by].filter(Boolean).join(' · ')}</span>`;
 }
 
 /* ---------- 屋苑比較 ---------- */

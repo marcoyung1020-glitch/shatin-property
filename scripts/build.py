@@ -14,17 +14,42 @@ if cd and w:
 m["ccl_weekly"] = w
 
 name2id = {e["name"]: e["id"] for e in E}
+import datetime as dt
+HK = dt.timezone(dt.timedelta(hours=8))
+NOW = dt.datetime.now(HK).strftime("%Y-%m-%dT%H:%M")
+SEENF = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "first_seen.json")
+os.makedirs(os.path.dirname(SEENF), exist_ok=True)
+SEEN = json.load(open(SEENF)) if os.path.exists(SEENF) else {}
+BASE = SEEN.setdefault("_base", NOW)  # 開始追蹤時間：當日已存在嘅盤無法知道實際刊登日
+def hk(ts):
+    """各來源日期轉成香港時間 YYYY-MM-DDTHH:MM（只有日期就保留日期）"""
+    if not ts: return None
+    if len(ts) == 10: return ts
+    try:
+        d = dt.datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        if d.tzinfo is None: d = d.replace(tzinfo=HK)
+        return d.astimezone(HK).strftime("%Y-%m-%dT%H:%M")
+    except ValueError:
+        return None
+def stamp(key, pub, q):
+    seen = SEEN.setdefault(key, NOW)
+    pub = hk(pub)
+    if pub and pub[:16] <= seen:
+        return pub, q
+    return seen, ("base" if seen == BASE else "seen")
 L = []
 for x in LA:
     if not x.get("price"): continue
     L.append(dict(s=x["src"], e=x["estate"], p=round(x["price"] / 1e4, 1), a=x.get("area"), f=x.get("psf"),
                   r=x.get("rooms"), b=x.get("bldg") or "", fl=x.get("floor") or "", d=x.get("updated") or "",
                   t=x.get("tags") or [], u=x.get("url") or "", ls=x.get("lease")))
+    L[-1]["pd"], L[-1]["pq"] = stamp(f'{x["src"]}:{x.get("ref") or x.get("url")}', x.get("pub"), "exact")
 for x in LP["listings"]:
     if not x.get("price"): continue
     L.append(dict(s=x["source"], e=name2id[x["estate"]], p=x["price"], a=x.get("area"), f=x.get("psf"),
                   r=x.get("rooms"), b=x.get("building") or "", fl=x.get("floor") or "", d="",
                   t=[x["agency"]] if x.get("agency") else ([x["title"]] if x.get("title") else []), u=x["url"], ls=False, o=x.get("owner")))
+    L[-1]["pd"], L[-1]["pq"] = stamp(f'{x["source"]}:{x["estate"]}|{x.get("building")}|{x.get("floor")}|{x.get("area")}|{x.get("rooms")}', x.get("pub"), "day")
 # 剔除車位、舖位及資料不全
 def ok(x):
     txt = " ".join([x["b"]] + list(x["t"]))
@@ -64,6 +89,7 @@ for e in E:
         mid_avg=meta.get("avg_net_ft_price"), stat=meta.get("market_stat"), sold=(meta.get("recent_sold") or [])[:5],
         lat=meta.get("latitude"), lng=meta.get("longitude"),
         links=e["links"] | {"h28": (tot.get("28hse") or {}).get("url"), "h730": (tot.get("house730") or {}).get("url")}))
+json.dump(SEEN, open(SEENF, "w"), ensure_ascii=False)
 out = dict(generated=m.get("generated"), listings_generated=LP.get("generated"), market=m, estates=ES, listings=L)
 json.dump(out, open(os.path.join(D, "app.json"), "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
 print(len(L), os.path.getsize(os.path.join(D, "app.json")))

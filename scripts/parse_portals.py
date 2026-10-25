@@ -2,7 +2,7 @@
 """Parse fetched House730 / 28Hse markdown pages (/tmp/portal/*.md) into site/data/listings_portal.json."""
 import json, re, glob, os, datetime
 
-SRC = os.environ.get("PORTAL_DIR", "/tmp/portal")
+SRC = os.environ.get("PORTAL_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "portal"))
 OUT = os.path.join(os.path.dirname(__file__), "..", "site", "data", "listings_portal.json")
 
 H28 = {"蔚景園":4109,"沙田中心":4086,"河畔花園":4107,"好運中心":4082,"偉華中心":4089,"花園城":4118,
@@ -46,8 +46,24 @@ def parse_h730(est, L):
     m = re.search(r"共找到 ([\d,]+) 個樓盤", "\n".join(L))
     return out, int(m.group(1).replace(",", "")) if m else None
 
-def parse_h28(est, L):
+def h28_anchor(path):
+    # 「N日前」相對於讀取頁面嗰日（檔案修改日期，香港時間）
+    t = datetime.datetime.fromtimestamp(os.path.getmtime(path), datetime.timezone(datetime.timedelta(hours=8)))
+    return t.date()
+
+def h28_pub(L, i, anchor):
+    # 「** N 日前 刊登」喺每個盤標題之前
+    for l in L[max(0, i-4):i]:
+        m = re.search(r"(\d+) (分鐘|小時|日|星期|個月)前 刊登", l)
+        if m:
+            n = int(m.group(1)); u = m.group(2)
+            days = {"分鐘": 0, "小時": n/24, "日": n, "星期": n*7, "個月": n*30}[u]
+            return (anchor - datetime.timedelta(days=int(days))).isoformat()
+    return None
+
+def parse_h28(est, L, path):
     out = []
+    anchor = h28_anchor(path)
     starts = [i for i, l in enumerate(L) if re.match(r"^沙田 \S+ \|", l) and est in l]
     for k, i in enumerate(starts):
         blk = L[i:(starts[k+1] if k+1 < len(starts) else len(L))]
@@ -64,7 +80,7 @@ def parse_h28(est, L):
             price=num(price.group(1)), area=num(area.group(1)) if area else None,
             rooms=int(rooms.group(1)) if rooms else None, floor=floor.group(1) if floor else "",
             psf=num(area.group(2)) if area and area.group(2) else None,
-            owner=("業主" in ag), title="", agency=ag,
+            owner=("業主" in ag), title="", agency=ag, pub=h28_pub(L, i, anchor), pubq="day",
             url=f"https://www.28hse.com/buy/a3/dg44/c{H28[est]}"))
     m = re.search(r"共有 ([\d,]+) 個放售樓盤", "\n".join(L))
     return out, int(m.group(1).replace(",", "")) if m else None
@@ -78,7 +94,7 @@ def main():
             p = os.path.join(SRC, f"{prefix}_{est}.md")
             if not os.path.exists(p):
                 continue
-            items, total = fn(est, lines_of(p))
+            items, total = fn(est, lines_of(p), p) if key == "28hse" else fn(est, lines_of(p))
             res["listings"] += items
             res["totals"][est][key] = {"total": total, "parsed": len(items),
                 "url": items[0]["url"] if items else (f"https://www.house730.com/buy/e{H730[est]}/" if key == "house730" else f"https://www.28hse.com/buy/a3/dg44/c{H28[est]}")}
