@@ -2,7 +2,7 @@ name: 每日更新
 
 on:
   schedule:
-    - cron: "0 14 * * *"   # 每晚 10:00（香港時間）
+    - cron: "0 2,4,6,8,10,12,14 * * *"   # 香港時間 10:00 至 22:00，每 2 小時
   workflow_dispatch:        # 可喺 Actions 頁面手動執行
   push:
     branches: [main]
@@ -26,21 +26,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: 取回資料
+        run: python scripts/push_data.py pull
       - name: 收集及整合資料
         if: github.event_name != 'push'
         env:
           TZ: Asia/Hong_Kong
           MIDLAND_FROM_FILE: "1"
         run: bash scripts/update.sh
-      - name: 儲存最新資料
+      - name: 上載資料
         if: github.event_name != 'push'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A site/data data
-          git diff --cached --quiet || git commit -m "自動更新 $(TZ=Asia/Hong_Kong date '+%Y-%m-%d %H:%M')"
-          git pull --rebase
-          git push
+        run: python scripts/push_data.py push data/first_seen.json site/data/app.json site/data/estates.json site/data/listings_agency.json site/data/market.json site/data/status.json
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

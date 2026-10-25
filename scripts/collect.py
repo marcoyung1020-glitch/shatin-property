@@ -303,7 +303,7 @@ def listings():
   if os.environ.get("MIDLAND_FROM_FILE"):
     tok = None  # GitHub 伺服器被美聯擋，改用 self-hosted runner 存低嘅 midland.json
     gen = (MF or {}).get("generated")
-    fresh = bool(gen) and (dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).replace(tzinfo=None) - dt.datetime.fromisoformat(gen)).total_seconds() < 36 * 3600
+    fresh = bool(gen) and (dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).replace(tzinfo=None) - dt.datetime.fromisoformat(gen)).total_seconds() < 5 * 3600
     ok["midland"] = fresh
     if gen:
       status.setdefault("midland", {})["last_ok"] = gen

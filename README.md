@@ -1,5 +1,7 @@
 # 沙田睇樓平台
-每晚 9:45（香港時間）喺香港電腦（self-hosted runner）讀美聯（`.github/workflows/midland.yml`，因為 GitHub 伺服器被美聯擋）；10:00 由 GitHub Actions 更新其餘資料並發布到 GitHub Pages（`.github/workflows/update.yml`）。亦可喺 Actions 頁面撳「Run workflow」手動更新。
+香港時間 10:00 至 22:00 每 2 小時更新：提早 15 分鐘喺香港電腦（self-hosted runner）讀美聯（`.github/workflows/midland.yml`，因為 GitHub 伺服器被美聯擋）；整點由 GitHub Actions 更新其餘資料並發布到 GitHub Pages（`.github/workflows/update.yml`）。
+
+資料檔唔存喺 main，而係存喺 `data` 分支，每次只保留一個 commit（`scripts/push_data.py pull / push`），repository 唔會越嚟越大。亦可喺 Actions 頁面撳「Run workflow」手動更新。
 
 - `python scripts/collect.py midland`：只讀美聯，存入 `site/data/midland.json`
 - `scripts/update.sh`：一鍵更新（市場數據、HIBOR、美聯／中原／利嘉閣放盤、整合）

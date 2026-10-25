@@ -1,1 +1,4 @@
 __pycache__/
+# 資料檔放喺 data 分支
+data/*.json
+site/data/*.json
