@@ -275,6 +275,23 @@ def ricacorp(est):
   return L, total
 
 
+def midland_all():
+  """只讀美聯（喺香港電腦嘅 self-hosted runner 執行），結果存入 site/data/midland.json"""
+  tok = midland_token()
+  now = dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).strftime("%Y-%m-%dT%H:%M")
+  out = {"generated": now, "estates": {}}
+  for e in ESTATES:
+    L, R, meta, N = midland(e, tok)
+    for x in L:
+      x["estate"] = e["id"]
+    print(e["name"], len(L))
+    out["estates"][e["id"]] = dict(L=L, R=R, meta=meta, N=N)
+  if sum(len(v["L"]) for v in out["estates"].values()) < 100:
+    raise SystemExit("美聯放盤太少，唔覆蓋舊資料")
+  json.dump(PUBCACHE, open(PUBF, "w"))
+  save("midland.json", out)
+
+
 def listings():
   """每個來源獨立處理：讀唔到（例如美聯擋海外 IP）就沿用上次資料，並記錄喺 status.json"""
   oldL = load_old("listings_agency.json") or []
@@ -282,10 +299,19 @@ def listings():
   status = load_old("status.json") or {}
   now = dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).strftime("%Y-%m-%dT%H:%M")
   ok = {"midland": True, "centanet": True, "ricacorp": True}
-  try:
-    tok = midland_token()
-  except Exception as ex:
-    print("  美聯 token 失敗:", str(ex)[:80]); tok = None; ok["midland"] = False
+  MF = load_old("midland.json") if os.environ.get("MIDLAND_FROM_FILE") else None
+  if os.environ.get("MIDLAND_FROM_FILE"):
+    tok = None  # GitHub 伺服器被美聯擋，改用 self-hosted runner 存低嘅 midland.json
+    gen = (MF or {}).get("generated")
+    fresh = bool(gen) and (dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).replace(tzinfo=None) - dt.datetime.fromisoformat(gen)).total_seconds() < 36 * 3600
+    ok["midland"] = fresh
+    if gen:
+      status.setdefault("midland", {})["last_ok"] = gen
+  else:
+    try:
+      tok = midland_token()
+    except Exception as ex:
+      print("  美聯 token 失敗:", str(ex)[:80]); tok = None; ok["midland"] = False
   estates_out = []
   allL = []
   for e in ESTATES:
@@ -294,7 +320,10 @@ def listings():
     keep = lambda src: [x for x in oldL if x["src"] == src and x.get("estate") == e["id"]]
     pc = prev.get("counts", {})
     mL = mR = None; meta = prev.get("meta", {}); mN = pc.get("midland")
-    if tok:
+    if MF and e["id"] in MF.get("estates", {}):
+      d_ = MF["estates"][e["id"]]
+      mL, mR, meta, mN = d_["L"], d_["R"], d_["meta"], d_["N"]
+    elif tok:
       try:
         mL, mR, meta, mN = midland(e, tok)
       except Exception as ex:
@@ -327,7 +356,7 @@ def listings():
   for k, v in ok.items():
     st_ = status.setdefault(k, {})
     st_["ok"] = v; st_["checked"] = now
-    if v: st_["last_ok"] = now
+    if v and not (k == "midland" and MF): st_["last_ok"] = now
   json.dump(PUBCACHE, open(PUBF, "w"))
   save("status.json", status)
   save("estates.json", estates_out)
@@ -338,5 +367,7 @@ if __name__ == "__main__":
   what = sys.argv[1:] or ["market", "listings"]
   if "market" in what:
     market()
+  if "midland" in what:
+    midland_all()
   if "listings" in what:
     listings()

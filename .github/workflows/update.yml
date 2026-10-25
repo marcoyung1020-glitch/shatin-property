@@ -30,6 +30,7 @@ jobs:
         if: github.event_name != 'push'
         env:
           TZ: Asia/Hong_Kong
+          MIDLAND_FROM_FILE: "1"
         run: bash scripts/update.sh
       - name: 儲存最新資料
         if: github.event_name != 'push'
@@ -38,6 +39,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A site/data data
           git diff --cached --quiet || git commit -m "自動更新 $(TZ=Asia/Hong_Kong date '+%Y-%m-%d %H:%M')"
+          git pull --rebase
           git push
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
