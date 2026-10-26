@@ -114,6 +114,7 @@
         <option value="f:asc">呎價 低至高</option><option value="f:desc">呎價 高至低</option>
         <option value="a:desc">實用 大至細</option><option value="a:asc">實用 細至大</option>
         <option value="pd:desc">首次出現 新至舊</option><option value="pd:asc">首次出現 舊至新</option>
+        <option value="y:desc">租金回報 高至低</option><option value="dc:desc">低於市價 幅度大至細</option>
         <option value="d:desc">最近更新</option>
       </select>
     </label>
@@ -122,18 +123,22 @@
       <label class="chk"><input type="checkbox" value="centanet" checked>中原</label>
       <label class="chk"><input type="checkbox" value="ricacorp" checked>利嘉閣</label>
     </fieldset>
-    <label class="chk merge"><input type="checkbox" id="f-merge" checked>合併疑似同一單位</label>
+    <fieldset class="srcs"><legend>其他</legend>
+      <label class="chk"><input type="checkbox" id="f-below">只睇低於市價</label>
+      <label class="chk"><input type="checkbox" id="f-merge" checked>合併疑似同一單位</label>
+    </fieldset>
   </form>
   <p class="stale-note" id="stale-note" hidden></p>
   <div class="result-bar"><span id="res-count"></span><span class="muted" id="res-note"></span></div>
   <div class="table-wrap list-wrap">
     <table class="tbl listing" id="tbl-list">
-      <thead><tr><th>屋苑／座數</th><th class="num" data-sort="p" aria-sort="none"><button type="button" class="th-sort">售價<span class="arr" aria-hidden="true"></span></button></th><th class="num" data-sort="a" aria-sort="none"><button type="button" class="th-sort">實用<span class="arr" aria-hidden="true"></span></button></th><th class="num" data-sort="f" aria-sort="none"><button type="button" class="th-sort">呎價<span class="arr" aria-hidden="true"></span></button></th><th>間隔</th><th>樓層</th><th data-sort="pd" aria-sort="none"><button type="button" class="th-sort">首次出現<span class="arr" aria-hidden="true"></span></button></th><th>來源</th><th>特色</th><th></th></tr></thead>
+      <thead><tr><th>屋苑／座數</th><th class="num" data-sort="p" aria-sort="none"><button type="button" class="th-sort">售價<span class="arr" aria-hidden="true"></span></button></th><th class="num" data-sort="a" aria-sort="none"><button type="button" class="th-sort">實用<span class="arr" aria-hidden="true"></span></button></th><th class="num" data-sort="f" aria-sort="none"><button type="button" class="th-sort">呎價<span class="arr" aria-hidden="true"></span></button></th><th class="num" data-sort="y" aria-sort="none"><button type="button" class="th-sort">租金回報<span class="arr" aria-hidden="true"></span></button></th><th>間隔</th><th>樓層</th><th data-sort="pd" aria-sort="none"><button type="button" class="th-sort">首次出現<span class="arr" aria-hidden="true"></span></button></th><th>來源</th><th>特色</th><th></th></tr></thead>
       <tbody></tbody>
     </table>
   </div>
   <div class="pager"><button id="more" class="btn ghost">顯示更多</button></div>
   <p class="note">收錄美聯、中原、利嘉閣全部放盤。「首次出現」以各網站最早刊登時間為準：美聯、中原有準確刊登時間；利嘉閣冇公開刊登日期，以本平台首次收錄時間代替。「合併」以屋苑＋面積＋房數＋樓層判斷，只作參考，睇樓前請向代理核實。</p>
+  <p class="note">「租金回報」＝屋苑放租中位呎租 × 實用面積 × 12 ÷ 叫價，屬毛回報，未扣差餉、管理費、空置期及按揭利息；屋苑放租樣本少於 3 個時，改用同區屋苑中位呎租估算（標示「估」）。「低於市價」＝呎價比同屋苑同房數放盤中位呎價低 5% 或以上（同類放盤少於 5 個時，改用全屋苑中位呎價）；低 10% 或以上以深色標示。市價以放盤叫價計，實際成交通常再低少少，平盤亦可能因樓層、景觀、裝修或業權問題而平，睇樓前請向代理查清楚。</p>
 </section>
 
 <!-- 屋苑比較 -->

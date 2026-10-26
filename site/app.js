@@ -26,6 +26,7 @@ window.addEventListener('hashchange', route);
 fetch('data/app.json').then(r => r.json()).then(d => {
   DATA = d;
   d.estates.forEach(e => EST[e.id] = e);
+  enrich(d);
   const g = (d.generated || '').replace('T', ' ').slice(0, 16);
   $('#stamp').textContent = '數據更新：' + g;
   route();
@@ -111,6 +112,42 @@ function drawCharts() {
   ] }, options: baseOpts({ scales: { x: X(), y: { title: { display: true, text: '樓價' } }, y1: { position: 'right', grid: { display: false }, title: { display: true, text: '租金' } } } }) });
 }
 
+/* ---------- 租金回報、市價基準 ---------- */
+const median = a => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+const BELOW = 5, BELOW_STRONG = 10;
+const roomKey = r => r == null ? '?' : r >= 3 ? 3 : r;
+function enrich(d) {
+  // 呎租：屋苑樣本 ≥3 用屋苑，否則用同區屋苑中位
+  const areaRent = {};
+  d.estates.forEach(e => { if (e.rent_psf && e.rent_n >= 3) (areaRent[e.area] ||= []).push(e.rent_psf); });
+  const allRent = median(d.estates.filter(e => e.rent_psf && e.rent_n >= 3).map(e => e.rent_psf));
+  d.estates.forEach(e => {
+    if (e.rent_psf && e.rent_n >= 3) { e._rent = e.rent_psf; e._rentEst = false; }
+    else { e._rent = median(areaRent[e.area] || []) || allRent; e._rentEst = true; }
+  });
+  // 市價基準：同屋苑同房數放盤中位呎價（≥5 個），否則全屋苑中位
+  const byE = {}, byER = {};
+  d.listings.forEach(x => { if (!x.f) return; (byE[x.e] ||= []).push(x.f); (byER[x.e + '|' + roomKey(x.r)] ||= []).push(x.f); });
+  const mE = {}, mER = {};
+  Object.entries(byE).forEach(([k, v]) => mE[k] = median(v));
+  Object.entries(byER).forEach(([k, v]) => mER[k] = v.length >= 5 ? { m: median(v), n: v.length } : null);
+  d.listings.forEach(x => {
+    const e = EST[x.e] || {};
+    x.y = e._rent && x.a && x.p ? +(e._rent * x.a * 12 / (x.p * 1e4) * 100).toFixed(2) : null;
+    x.yEst = !!e._rentEst;
+    const g = r => mER[x.e + '|' + roomKey(x.r)];
+    const b = x.r != null && g() ? g() : null;
+    x.bm = b ? b.m : mE[x.e] || null;
+    x.bmBy = b ? (x.r >= 3 ? '3房或以上' : x.r === 0 ? '開放式' : x.r + '房') : '全屋苑';
+    x.dc = x.f && x.bm ? +((1 - x.f / x.bm) * 100).toFixed(1) : null;
+  });
+}
+function belowTag(x) {
+  if (x.dc == null || x.dc < BELOW) return '';
+  return `<span class="below${x.dc >= BELOW_STRONG ? ' strong' : ''}" title="同屋苑${x.bmBy}放盤中位呎價 $${fmt(x.bm)}">低於市價 ${fmt(x.dc, 0)}%</span>`;
+}
+const yieldTxt = x => x.y == null ? '—' : fmt(x.y, 2) + '%' + (x.yEst ? '<span class="est-mark" title="屋苑放租樣本不足，用同區屋苑中位呎租估算">估</span>' : '');
+
 /* ---------- 放盤 ---------- */
 let shown = 60;
 function initListings() {
@@ -119,7 +156,7 @@ function initListings() {
   $('#filters').addEventListener('input', () => { shown = 60; renderListings(); });
   $('#more').onclick = () => { shown += 60; renderListings(); };
   // 撳表頭排序；再撳一次倒轉
-  const first = { p: 'asc', f: 'asc', a: 'desc', pd: 'desc' };
+  const first = { p: 'asc', f: 'asc', a: 'desc', pd: 'desc', y: 'desc' };
   $$('#tbl-list th[data-sort] button').forEach(b => b.onclick = () => {
     const k = b.parentElement.dataset.sort, [ck, cd] = $('#f-sort').value.split(':');
     const d = ck === k ? (cd === 'asc' ? 'desc' : 'asc') : first[k];
@@ -135,9 +172,9 @@ function initListings() {
 }
 function filtered() {
   const e = $('#f-estate').value, max = +$('#f-max').value || Infinity, rooms = $('#f-rooms').value,
-    area = +$('#f-area').value || 0, psf = +$('#f-psf').value || Infinity, srcs = new Set($$('.srcs input:checked').map(i => i.value));
+    area = +$('#f-area').value || 0, psf = +$('#f-psf').value || Infinity, srcs = new Set($$('.srcs input:checked').map(i => i.value)), below = $('#f-below').checked;
   return DATA.listings.filter(x => (!e || x.e === e) && x.p <= max && srcs.has(x.s) && (!area || (x.a || 0) >= area) && (psf === Infinity || (x.f && x.f <= psf)) &&
-    (rooms === '' || (rooms === '3' ? x.r >= 3 : x.r === +rooms)));
+    (rooms === '' || (rooms === '3' ? x.r >= 3 : x.r === +rooms)) && (!below || x.dc >= BELOW));
 }
 const floorKey = f => /高/.test(f) ? '高' : /中/.test(f) ? '中' : /低|地/.test(f) ? '低' : '';
 function renderListings() {
@@ -170,7 +207,7 @@ function renderListings() {
   rows.forEach(x => { x.first = x.all.reduce((m, y) => (!m || rank(y) < rank(m)) ? y : m, null); });
   const [key, dir] = $('#f-sort').value.split(':');
   const sgn = dir === 'asc' ? 1 : -1;
-  const val = x => key === 'p' ? x.p : key === 'a' ? x.a : key === 'f' ? x.f : key === 'pd' ? sortPd(x) : x.d;
+  const val = x => key === 'p' ? x.p : key === 'a' ? x.a : key === 'f' ? x.f : key === 'pd' ? sortPd(x) : key === 'y' ? x.y : key === 'dc' ? x.dc : x.d;
   rows.sort((a, b) => {
     const va = val(a), vb = val(b);
     const ea = va == null || va === '', eb = vb == null || vb === '';
@@ -198,16 +235,17 @@ function renderListings() {
       <td class="c-est"><span class="est-name">${esc(e.name)}</span><span class="sub2">${esc(x.b) || '&nbsp;'}</span></td>
       <td class="num c-price"><span class="price">${wan(x.p)}</span>${spread}</td>
       <td class="num c-hide">${x.a ? fmt(x.a) + '呎' : '—'}</td>
-      <td class="num c-hide">${x.f ? '$' + fmt(x.f) : '—'}</td>
+      <td class="num c-hide">${x.f ? '$' + fmt(x.f) : '—'}${belowTag(x)}</td>
+      <td class="num c-hide">${yieldTxt(x)}</td>
       <td class="c-hide">${rooms}</td>
       <td class="c-hide">${esc(x.fl) || '—'}</td>
       <td class="c-first">${firstCell(x.first, x.all.length > 1)}</td>
-      <td class="c-meta">${x.a ? fmt(x.a) + '呎' : ''} · ${x.f ? '$' + fmt(x.f) + '/呎' : ''} · ${rooms} · ${esc(x.fl)}</td>
+      <td class="c-meta">${x.a ? fmt(x.a) + '呎' : ''} · ${x.f ? '$' + fmt(x.f) + '/呎' : ''} · ${rooms} · ${esc(x.fl)}${x.y != null ? ' · 回報 ' + yieldTxt(x) : ''}${belowTag(x)}</td>
       <td class="c-src">${srcs}</td>
       <td class="c-tags"><div class="chips">${tags}</div></td>
       <td class="c-act"><button class="btn ghost sm" data-calc="${x.p}">計按揭</button></td>
     </tr>`;
-  }).join('') || `<tr><td colspan="10" class="muted">冇符合條件嘅放盤，試下放寬篩選。</td></tr>`;
+  }).join('') || `<tr><td colspan="11" class="muted">冇符合條件嘅放盤，試下放寬篩選。</td></tr>`;
   $('#more').hidden = rows.length <= shown;
   $$('[data-calc]', tb).forEach(b => b.onclick = () => { $('#c-price').value = b.dataset.calc; location.hash = '#calc'; });
 }
