@@ -7,7 +7,7 @@ with sync_playwright() as p:
         pg=b.new_page(viewport=vp); errs=[]
         pg.on('console',lambda m: m.type=='error' and errs.append(m.text)); pg.on('pageerror',lambda e: errs.append(str(e)))
         pg.goto('http://localhost:8765/#listings'); pg.wait_for_timeout(1500)
-        pg.select_option('#f-sort','pd'); pg.wait_for_timeout(500)
+        pg.select_option('#f-sort','pd:desc'); pg.wait_for_timeout(500)
         pg.screenshot(path=f'/tmp/qa_{tag}_pd.png')
         print(tag, errs, pg.eval_on_selector_all('#tbl-list tbody tr td.c-first', 'e=>e.slice(0,4).map(x=>x.innerText)'))
         print(pg.evaluate('document.documentElement.scrollWidth'))
