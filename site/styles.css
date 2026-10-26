@@ -206,3 +206,11 @@ th[aria-sort="ascending"] .th-sort, th[aria-sort="descending"] .th-sort { color:
 .below.strong { color: #fff; background: var(--color-success); }
 .est-mark { display: inline-block; margin-left: 3px; font-size: 10px; line-height: 1.4; padding: 0 3px; border: 1px solid var(--color-divider); border-radius: 3px; color: var(--color-text-muted); vertical-align: 1px; }
 .listing td.c-meta .below { display: inline-block; margin: 0 0 0 6px; }
+/* 放盤表收窄，避免右邊被切 */
+.list-wrap { overflow-x: auto; }
+.listing td.c-first .sub2 { white-space: normal; }
+.listing td.c-rf { white-space: nowrap; }
+.listing td.c-src .src { white-space: nowrap; }
+@media (min-width: 561px) and (max-width: 1180px) { .listing th.c-tags, .listing td.c-tags { display: none; } }
+@media (max-width: 560px) { .listing td.c-first .sub2 { white-space: normal; } }
+@media (min-width: 561px) and (max-width: 1180px) { .listing th, .listing td { padding-left: var(--space-2); padding-right: var(--space-2); } }

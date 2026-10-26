@@ -237,15 +237,14 @@ function renderListings() {
       <td class="num c-hide">${x.a ? fmt(x.a) + '呎' : '—'}</td>
       <td class="num c-hide">${x.f ? '$' + fmt(x.f) : '—'}${belowTag(x)}</td>
       <td class="num c-hide">${yieldTxt(x)}</td>
-      <td class="c-hide">${rooms}</td>
-      <td class="c-hide">${esc(x.fl) || '—'}</td>
+      <td class="c-hide c-rf">${rooms}<span class="sub2">${esc(x.fl) || '—'}</span></td>
       <td class="c-first">${firstCell(x.first, x.all.length > 1)}</td>
-      <td class="c-meta">${x.a ? fmt(x.a) + '呎' : ''} · ${x.f ? '$' + fmt(x.f) + '/呎' : ''} · ${rooms} · ${esc(x.fl)}${x.y != null ? ' · 回報 ' + yieldTxt(x) : ''}${belowTag(x)}</td>
+      <td class="c-meta">${[x.a ? fmt(x.a) + '呎' : '', x.f ? '$' + fmt(x.f) + '/呎' : '', rooms, esc(x.fl), x.y != null ? '回報 ' + yieldTxt(x) : ''].filter(Boolean).join(' · ')}${belowTag(x)}</td>
       <td class="c-src">${srcs}</td>
       <td class="c-tags"><div class="chips">${tags}</div></td>
       <td class="c-act"><button class="btn ghost sm" data-calc="${x.p}">計按揭</button></td>
     </tr>`;
-  }).join('') || `<tr><td colspan="11" class="muted">冇符合條件嘅放盤，試下放寬篩選。</td></tr>`;
+  }).join('') || `<tr><td colspan="10" class="muted">冇符合條件嘅放盤，試下放寬篩選。</td></tr>`;
   $('#more').hidden = rows.length <= shown;
   $$('[data-calc]', tb).forEach(b => b.onclick = () => { $('#c-price').value = b.dataset.calc; location.hash = '#calc'; });
 }
@@ -268,9 +267,9 @@ function firstCell(y, multi) {
   const thisYr = new Date(DATA.listings_generated || Date.now()).getFullYear();
   const date = `${yr !== thisYr ? yr + '年' : ''}${mo}月${da}日`;
   let main, note;
-  if (y.pq === 'exact') { main = `${date} ${tt}`; note = daysAgo(y.pd); }
+  if (y.pq === 'exact') { main = date; note = `${tt} · ${daysAgo(y.pd)}`; }
     else if (y.pq === 'base') { main = `${date}前`; note = '開始追蹤前已放盤'; }
-  else { main = `${date} ${tt || ''}`.trim(); note = '本平台首次收錄'; }
+  else { main = date; note = `${tt ? tt + ' · ' : ''}本平台首次收錄`; }
   const by = multi ? `最早：${SRC[y.s]}` : '';
   return `<span class="first-date">${main}</span><span class="sub2">${[note, by].filter(Boolean).join(' · ')}</span>`;
 }
