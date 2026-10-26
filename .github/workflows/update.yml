@@ -4,6 +4,9 @@ on:
   schedule:
     - cron: "0 2,4,6,8,10,12,14 * * *"   # 香港時間 10:00 至 22:00，每 2 小時
   workflow_dispatch:        # 可喺 Actions 頁面手動執行
+  workflow_run:             # 香港電腦更新完美聯後，即時重新整合網站
+    workflows: ["美聯（香港電腦）"]
+    types: [completed]
   push:
     branches: [main]
     paths: ["site/**"]
@@ -19,6 +22,7 @@ concurrency:
 
 jobs:
   update:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
