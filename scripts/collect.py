@@ -280,10 +280,12 @@ def ricacorp(est):
   total = st.get("POSTSTOTAL") or len(posts)
   pages = st.get("POSTSNUMPAGES") or 1
   for p in range(2, min(pages, 20) + 1):
-    d = jget(f"https://www.ricacorp.com/zh-hk/property/api/post?locationId={loc}&offset={(p-1)*10}&page={p}&txType=1",
-             headers={"x-custom-header": "www.ricacorp.com/zh-hk/property"})
-    if d and d.get("results"):
-      posts += d["results"]
+    for k in range(4):  # 個別版面間中讀唔到，重試幾次
+      d = jget(f"https://www.ricacorp.com/zh-hk/property/api/post?locationId={loc}&offset={(p-1)*10}&page={p}&txType=1",
+               headers={"x-custom-header": "www.ricacorp.com/zh-hk/property"})
+      if d and d.get("results"):
+        posts += d["results"]; break
+      time.sleep(2 + 3 * k)
     time.sleep(0.6)
   L = []
   seen = set()

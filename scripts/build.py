@@ -72,8 +72,13 @@ healthy = {s_: cur_n.get(s_, 0) >= 0.85 * n for s_, n in prev_n.items()}
 for x in L:
     k = key_(x); v = TR.get(k)
     TR[k] = dict(x=x, seen=NOW, gone=None, sold=None, since=(v or {}).get("since") or NOW)
+# 個別屋苑讀唔齊（例如利嘉閣某幾版讀唔到）都唔當作下架
+got = {}
+for x in L: got[(x["s"], x["e"])] = got.get((x["s"], x["e"]), 0) + 1
+rep = {(s_, e["id"]): n for e in E for s_, n in (e.get("counts") or {}).items() if n}
+complete = lambda s_, e_: got.get((s_, e_), 0) >= 0.95 * rep.get((s_, e_), 0)
 for k, v in TR.items():
-    if k not in cur and v.get("gone") is None and healthy.get(v["x"]["s"], False):
+    if k not in cur and v.get("gone") is None and healthy.get(v["x"]["s"], False) and complete(v["x"]["s"], v["x"]["e"]):
         v["gone"] = NOW
 # 保留下架後 60 日
 cut = (dt.datetime.now(HK) - dt.timedelta(days=60)).strftime("%Y-%m-%dT%H:%M")
@@ -106,11 +111,16 @@ def same_bldg(a, b):
     if na and nb: return bool(na & nb)
     return bool(ca and cb and ca & cb)
 TOP = {}
+def bid(b):
+    na, ca = bkeys(b)
+    return min(na) if na else (min(ca) if ca else "")
 for eid, ts in TX.items():
     for t in ts:
         n = floor_no(t["floor"])
-        if n: TOP[eid] = max(TOP.get(eid, 0), n)
-def match_sale(v):
+        if n:
+            TOP[eid] = max(TOP.get(eid, 0), n)
+            kb = (eid, bid(t["bldg"])); TOP[kb] = max(TOP.get(kb, 0), n)
+def cands(v):
     x = v["x"]
     if not x.get("a") or not x.get("b"): return None
     lz = zone_of(x["fl"], None)
@@ -118,24 +128,27 @@ def match_sale(v):
     if x.get("pq") == "base":  # 開始追蹤前已放盤：實際刊登日不詳，放寬 30 日
         start = (dt.date.fromisoformat(start) - dt.timedelta(days=30)).isoformat()
     end = (dt.datetime.fromisoformat(v["gone"]) + dt.timedelta(days=21)).strftime("%Y-%m-%d")
-    best = None
     for t in TX.get(x["e"], []):
         if not t.get("area") or abs(t["area"] - x["a"]) > 2: continue
         if not same_bldg(x["b"], t["bldg"]): continue
         if not (start <= (t["date"] or "") <= end): continue
-        tz = zone_of(t["floor"], TOP.get(x["e"]))
-        if lz is not None and tz is not None and abs(lz - tz) > 1: continue
+        tz = zone_of(t["floor"], TOP.get((x["e"], bid(t["bldg"]))) or TOP.get(x["e"]))
+        if lz is not None and tz is not None and lz != tz: continue
         p = t["price"] / 1e4
-        if not (0.75 * x["p"] <= p <= 1.03 * x["p"]): continue
-        score = abs(x["p"] - p) / x["p"] + (0 if (lz is None or tz is None or lz == tz) else 0.05)
-        if best is None or score < best[0]: best = (score, t)
-    if not best: return None
-    t = best[1]
+        if not (0.85 * x["p"] <= p <= 1.02 * x["p"]): continue
+        yield abs(x["p"] - p) / x["p"] + (0 if lz is not None and tz is not None else 0.03), t
+def sale_of(t):
     return dict(p=round(t["price"] / 1e4, 1), d=t["date"], fl=t["floor"], flat=t["flat"], u=t.get("url"), reg=t.get("reg"))
+# 每宗成交（同一來源）只配對一個最似嘅盤
+C = sorted(((sc, k, t) for k, v in TR.items() if v.get("gone") for sc, t in cands(v)), key=lambda z: z[0])
+used, SOLD = set(), {}
+for sc, k, t in C:
+    if k in SOLD or (TR[k]["x"]["s"], t["id"]) in used: continue
+    SOLD[k] = sale_of(t); used.add((TR[k]["x"]["s"], t["id"]))
 GONE = []
 for k, v in TR.items():
     if v.get("gone") is None: continue
-    v["sold"] = match_sale(v) or v.get("sold")
+    v["sold"] = SOLD.get(k)
     y = dict(v["x"]); y["gd"] = v["gone"]
     if v["sold"]:
         y["st"] = "sold"; y["sp"] = v["sold"]["p"]; y["sd"] = v["sold"]["d"]; y["sfl"] = (v["sold"]["fl"] or "") + (v["sold"]["flat"] or ""); y["su"] = v["sold"]["u"]
