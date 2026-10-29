@@ -56,6 +56,95 @@ before = len(L); L = [x for x in L if ok(x)]; print("removed", before - len(L))
 for x in L:
     if not x["f"] and x["a"]: x["f"] = round(x["p"] * 1e4 / x["a"])
 
+# ---------- 已下架／已售出追蹤 ----------
+TRF = os.path.join(os.path.dirname(SEENF), "tracked.json")
+TR = json.load(open(TRF)) if os.path.exists(TRF) else {}
+TXF = os.path.join(D, "transactions.json")
+TX = json.load(open(TXF, encoding="utf-8")) if os.path.exists(TXF) else {}
+key_ = lambda x: f'{x["s"]}:{x["u"]}'
+cur = {key_(x) for x in L}
+prev_n, cur_n = {}, {}
+for k, v in TR.items():
+    if v.get("gone") is None: prev_n[v["x"]["s"]] = prev_n.get(v["x"]["s"], 0) + 1
+for x in L: cur_n[x["s"]] = cur_n.get(x["s"], 0) + 1
+# 某來源今次數量跌超過 15%，多數係讀取唔齊，唔當作下架
+healthy = {s_: cur_n.get(s_, 0) >= 0.85 * n for s_, n in prev_n.items()}
+for x in L:
+    k = key_(x); v = TR.get(k)
+    TR[k] = dict(x=x, seen=NOW, gone=None, sold=None, since=(v or {}).get("since") or NOW)
+for k, v in TR.items():
+    if k not in cur and v.get("gone") is None and healthy.get(v["x"]["s"], False):
+        v["gone"] = NOW
+# 保留下架後 60 日
+cut = (dt.datetime.now(HK) - dt.timedelta(days=60)).strftime("%Y-%m-%dT%H:%M")
+TR = {k: v for k, v in TR.items() if v.get("gone") is None or v["gone"] >= cut}
+
+CN = dict(zip("零一二三四五六七八九", range(10)))
+def floor_no(t):
+    t = (t or "").replace("樓", "").strip()
+    if t.isdigit(): return int(t)
+    if t and all(c in "零一二三四五六七八九十" for c in t):
+        if "十" in t:
+            a, _, b = t.partition("十")
+            return (CN.get(a, 1) if a else 1) * 10 + (CN.get(b, 0) if b else 0)
+        return CN.get(t)
+    return None
+def zone_of(t, top):
+    if re.search("高", t or ""): return 2
+    if re.search("中", t or ""): return 1
+    if re.search("低|地", t or ""): return 0
+    n = floor_no(t)
+    if n is None or not top: return None
+    return 0 if n <= top / 3 else (1 if n <= top * 2 / 3 else 2)
+def bkeys(b):
+    b = b or ""
+    names = set(re.findall(r"([\u4e00-\u9fff]{2}(?:苑|閣|大廈))", b))
+    codes = set(re.findall(r"([A-Z]?\d*[A-Z]?)\s*座", b)) - {""}
+    return names, codes
+def same_bldg(a, b):
+    (na, ca), (nb, cb) = bkeys(a), bkeys(b)
+    if na and nb: return bool(na & nb)
+    return bool(ca and cb and ca & cb)
+TOP = {}
+for eid, ts in TX.items():
+    for t in ts:
+        n = floor_no(t["floor"])
+        if n: TOP[eid] = max(TOP.get(eid, 0), n)
+def match_sale(v):
+    x = v["x"]
+    if not x.get("a") or not x.get("b"): return None
+    lz = zone_of(x["fl"], None)
+    start = min(x.get("pd") or v["since"], v["since"])[:10]
+    if x.get("pq") == "base":  # 開始追蹤前已放盤：實際刊登日不詳，放寬 30 日
+        start = (dt.date.fromisoformat(start) - dt.timedelta(days=30)).isoformat()
+    end = (dt.datetime.fromisoformat(v["gone"]) + dt.timedelta(days=21)).strftime("%Y-%m-%d")
+    best = None
+    for t in TX.get(x["e"], []):
+        if not t.get("area") or abs(t["area"] - x["a"]) > 2: continue
+        if not same_bldg(x["b"], t["bldg"]): continue
+        if not (start <= (t["date"] or "") <= end): continue
+        tz = zone_of(t["floor"], TOP.get(x["e"]))
+        if lz is not None and tz is not None and abs(lz - tz) > 1: continue
+        p = t["price"] / 1e4
+        if not (0.75 * x["p"] <= p <= 1.03 * x["p"]): continue
+        score = abs(x["p"] - p) / x["p"] + (0 if (lz is None or tz is None or lz == tz) else 0.05)
+        if best is None or score < best[0]: best = (score, t)
+    if not best: return None
+    t = best[1]
+    return dict(p=round(t["price"] / 1e4, 1), d=t["date"], fl=t["floor"], flat=t["flat"], u=t.get("url"), reg=t.get("reg"))
+GONE = []
+for k, v in TR.items():
+    if v.get("gone") is None: continue
+    v["sold"] = match_sale(v) or v.get("sold")
+    y = dict(v["x"]); y["gd"] = v["gone"]
+    if v["sold"]:
+        y["st"] = "sold"; y["sp"] = v["sold"]["p"]; y["sd"] = v["sold"]["d"]; y["sfl"] = (v["sold"]["fl"] or "") + (v["sold"]["flat"] or ""); y["su"] = v["sold"]["u"]
+    else:
+        y["st"] = "gone"
+    GONE.append(y)
+json.dump(TR, open(TRF, "w"), ensure_ascii=False)
+print("已下架", sum(1 for y in GONE if y["st"] == "gone"), "已售出", sum(1 for y in GONE if y["st"] == "sold"))
+
 ES = []
 for e in E:
     mine = [x for x in L if x["e"] == e["id"] and x["s"] in ("midland", "centanet", "ricacorp")]
@@ -84,7 +173,7 @@ for e in E:
         links=e["links"]))
 json.dump(SEEN, open(SEENF, "w"), ensure_ascii=False)
 STATUS = J("status.json") if os.path.exists(os.path.join(D, "status.json")) else {}
-out = dict(status=STATUS, generated=m.get("generated"), listings_generated=m.get("generated"), market=m, estates=ES, listings=L)
+out = dict(status=STATUS, generated=m.get("generated"), listings_generated=m.get("generated"), market=m, estates=ES, listings=L + GONE)
 json.dump(out, open(os.path.join(D, "app.json"), "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
 print(len(L), os.path.getsize(os.path.join(D, "app.json")))
 for e in ES: print(e["name"], e["med_psf"], e["rent_psf"], e["yield_"], e["u500"], e["op_year"], e["counts"])

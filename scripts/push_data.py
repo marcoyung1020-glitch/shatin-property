@@ -8,7 +8,8 @@ import os, subprocess, sys, tempfile
 
 FILES = ["data/first_seen.json", "data/midland_first_pub.json",
          "site/data/app.json", "site/data/estates.json", "site/data/listings_agency.json",
-         "site/data/market.json", "site/data/midland.json", "site/data/status.json"]
+         "site/data/market.json", "site/data/midland.json", "site/data/status.json",
+         "data/tracked.json", "site/data/transactions.json"]
 
 def git(*a, env=None, check=True):
     r = subprocess.run(["git", *a], capture_output=True, text=True, env=env)

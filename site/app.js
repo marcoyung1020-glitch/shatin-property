@@ -127,7 +127,7 @@ function enrich(d) {
   });
   // 市價基準：同屋苑同房數放盤中位呎價（≥5 個），否則全屋苑中位
   const byE = {}, byER = {};
-  d.listings.forEach(x => { if (!x.f) return; (byE[x.e] ||= []).push(x.f); (byER[x.e + '|' + roomKey(x.r)] ||= []).push(x.f); });
+  d.listings.forEach(x => { if (!x.f || x.st) return; (byE[x.e] ||= []).push(x.f); (byER[x.e + '|' + roomKey(x.r)] ||= []).push(x.f); });
   const mE = {}, mER = {};
   Object.entries(byE).forEach(([k, v]) => mE[k] = median(v));
   Object.entries(byER).forEach(([k, v]) => mER[k] = v.length >= 5 ? { m: median(v), n: v.length } : null);
@@ -164,7 +164,7 @@ function initListings() {
   });
   const q = new URLSearchParams((location.hash.split('?')[1]) || '');
   if (q.get('e')) sel.value = q.get('e');
-  const n = DATA.listings.length;
+  const n = DATA.listings.filter(x => !x.st).length;
   const stale = Object.entries(DATA.status || {}).filter(([, v]) => !v.ok).map(([k, v]) => `${SRC[k]}（資料停留喺 ${(v.last_ok || '').replace('T', ' ')}）`);
   if (stale.length) { const w = $('#stale-note'); w.hidden = false; w.textContent = `注意：今次更新讀唔到 ${stale.join('、')}，暫時顯示上次資料。`; }
   $('#list-sub').textContent = `${n.toLocaleString()} 條放盤記錄 · 3 間代理 · 15 個屋苑`;
@@ -174,7 +174,7 @@ function filtered() {
   const e = $('#f-estate').value, max = +$('#f-max').value || Infinity, rooms = $('#f-rooms').value,
     area = +$('#f-area').value || 0, psf = +$('#f-psf').value || Infinity, srcs = new Set($$('.srcs input:checked').map(i => i.value)), below = $('#f-below').checked;
   return DATA.listings.filter(x => (!e || x.e === e) && x.p <= max && srcs.has(x.s) && (!area || (x.a || 0) >= area) && (psf === Infinity || (x.f && x.f <= psf)) &&
-    (rooms === '' || (rooms === '3' ? x.r >= 3 : x.r === +rooms)) && (!below || x.dc >= BELOW));
+    (rooms === '' || (rooms === '3' ? x.r >= 3 : x.r === +rooms)) && (!below || (!x.st && x.dc >= BELOW)));
 }
 const floorKey = f => /高/.test(f) ? '高' : /中/.test(f) ? '中' : /低|地/.test(f) ? '低' : '';
 function renderListings() {
@@ -184,7 +184,8 @@ function renderListings() {
   if (merge) {
     const g = new Map();
     L.forEach(x => {
-      const k = x.a ? [x.e, x.a, x.r ?? '?'].join('|') : 'u' + Math.random();
+      // 已下架嘅盤唔同放售中嘅合併（合併只按面積房數，可能係同座另一個單位）
+      const k = x.a ? [x.st ? 'off' : 'on', x.e, x.a, x.r ?? '?'].join('|') : 'u' + Math.random();
       if (!g.has(k)) g.set(k, []);
       g.get(k).push(x);
     });
@@ -200,8 +201,17 @@ function renderListings() {
       b[big].push(...blank);
       keys.forEach(f => g2.set(k + f, b[f]));
     });
-    rows = [...g2.values()].map(arr => { arr.sort((a, b) => a.p - b.p); return { ...arr[0], all: arr }; });
+    rows = [...g2.values()].map(arr => { arr.sort((a, b) => (!!a.st - !!b.st) || a.p - b.p); return { ...arr[0], all: arr }; });
   } else rows = L.map(x => ({ ...x, all: [x] }));
+  // 狀態：組內有任何一間代理仲放緊就當放售中
+  rows.forEach(x => {
+    if (x.all.some(y => !y.st)) { x.st = null; return; }
+    const s = x.all.find(y => y.st === 'sold');
+    if (s) Object.assign(x, { st: 'sold', sp: s.sp, sd: s.sd, sfl: s.sfl, su: s.su }); else x.st = 'gone';
+    x.gd = x.all.map(y => y.gd).sort().pop();
+  });
+  const stf = $('#f-status').value;
+  if (stf) rows = rows.filter(x => stf === 'on' ? !x.st : stf === 'sold' ? x.st === 'sold' : !!x.st);
   // 首次出現：同一單位取各網站最早嘅日期
   const rank = y => (y.pq === 'base' ? '~' : '') + (y.pd || '9');
   rows.forEach(x => { x.first = x.all.reduce((m, y) => (!m || rank(y) < rank(m)) ? y : m, null); });
@@ -219,27 +229,31 @@ function renderListings() {
     th.setAttribute('aria-sort', on ? (dir === 'asc' ? 'ascending' : 'descending') : 'none');
     th.querySelector('.arr').textContent = on ? (dir === 'asc' ? ' ↑' : ' ↓') : '';
   });
-  $('#res-count').textContent = merge ? `${rows.length} 個單位（${L.length} 條放盤）` : `${rows.length} 條放盤`;
-  const ps = L.map(x => x.f).filter(Boolean).sort((a, b) => a - b);
+  const nOff = rows.filter(x => x.st).length, nSold = rows.filter(x => x.st === 'sold').length;
+  $('#res-count').textContent = (merge ? `${rows.length} 個單位（${rows.reduce((s, x) => s + x.all.length, 0)} 條放盤）` : `${rows.length} 條放盤`) + (nOff ? `，當中 ${nSold} 個已售出、${nOff - nSold} 個已下架` : '');
+  const ps = L.filter(x => !x.st).map(x => x.f).filter(Boolean).sort((a, b) => a - b);
   $('#res-note').textContent = ps.length ? `中位呎價 $${fmt(ps[Math.floor(ps.length / 2)])}` : '';
   const tb = $('#tbl-list tbody');
   tb.innerHTML = rows.slice(0, shown).map(x => {
     const e = EST[x.e] || {};
     const srcMap = new Map();
     x.all.forEach(y => { if (!srcMap.has(y.s)) srcMap.set(y.s, y); });
-    const srcs = [...srcMap.values()].map(y => `<a class="src s-${y.s}" href="${esc(y.u)}" target="_blank" rel="noopener"><i></i>${SRC[y.s]}${x.all.length > 1 ? ' ' + wan(y.p) : ''}</a>`).join('');
+    const srcs = [...srcMap.values()].map(y => `<a class="src s-${y.s}${y.st ? ' off' : ''}" href="${esc(y.u)}" target="_blank" rel="noopener"${y.st ? ` title="${SRC[y.s]}已於 ${mdate(y.gd)} 下架"` : ''}><i></i>${SRC[y.s]}${x.all.length > 1 ? ' ' + wan(y.p) : ''}${y.st && !x.st ? '（已下架）' : ''}</a>`).join('');
     const tags = [...new Set(x.all.flatMap(y => y.t || []))].slice(0, 3).map(t => `<span class="chip">${esc(t)}</span>`).join('') + (x.ls ? '<span class="chip">連租約</span>' : '') + (x.o ? '<span class="chip">業主盤</span>' : '');
     const rooms = x.r == null ? '—' : x.r === 0 ? '開放式' : x.r + '房';
     const spread = x.all.length > 1 && x.all[x.all.length - 1].p !== x.p ? `<span class="sub2">叫價 ${wan(x.p)}–${wan(x.all[x.all.length - 1].p)}</span>` : '';
-    return `<tr>
+    const stTag = x.st === 'sold'
+      ? `<span class="st sold">已售出</span><span class="sub2">${x.su ? `<a href="${esc(x.su)}" target="_blank" rel="noopener">成交 ${wan(x.sp)}</a>` : '成交 ' + wan(x.sp)}${x.sp < x.p ? `（減 ${fmt((1 - x.sp / x.p) * 100, 1)}%）` : ''}<br>${mdate(x.sd)}成交${x.sfl ? ' · ' + esc(x.sfl) : ''}</span>`
+      : x.st === 'gone' ? `<span class="st gone" title="代理網站已移除，可能已售出或業主收回">已下架</span><span class="sub2">${mdate(x.gd)}下架</span>` : '';
+    return `<tr${x.st ? ` class="is-off is-${x.st}"` : ''}>
       <td class="c-est"><span class="est-name">${esc(e.name)}</span><span class="sub2">${esc(x.b) || '&nbsp;'}</span></td>
-      <td class="num c-price"><span class="price">${wan(x.p)}</span>${spread}</td>
+      <td class="num c-price"><span class="price">${wan(x.p)}</span>${spread}${stTag}</td>
       <td class="num c-hide">${x.a ? fmt(x.a) + '呎' : '—'}</td>
-      <td class="num c-hide">${x.f ? '$' + fmt(x.f) : '—'}${belowTag(x)}</td>
+      <td class="num c-hide">${x.f ? '$' + fmt(x.f) : '—'}${x.st ? '' : belowTag(x)}</td>
       <td class="num c-hide">${yieldTxt(x)}</td>
       <td class="c-hide c-rf">${rooms}<span class="sub2">${esc(x.fl) || '—'}</span></td>
       <td class="c-first">${firstCell(x.first, x.all.length > 1)}</td>
-      <td class="c-meta">${[x.a ? fmt(x.a) + '呎' : '', x.f ? '$' + fmt(x.f) + '/呎' : '', rooms, esc(x.fl), x.y != null ? '回報 ' + yieldTxt(x) : ''].filter(Boolean).join(' · ')}${belowTag(x)}</td>
+      <td class="c-meta">${[x.a ? fmt(x.a) + '呎' : '', x.f ? '$' + fmt(x.f) + '/呎' : '', rooms, esc(x.fl), x.y != null ? '回報 ' + yieldTxt(x) : ''].filter(Boolean).join(' · ')}${x.st ? '' : belowTag(x)}</td>
       <td class="c-src">${srcs}</td>
       <td class="c-tags"><div class="chips">${tags}</div></td>
       <td class="c-act"><button class="btn ghost sm" data-calc="${x.p}">計按揭</button></td>
@@ -250,6 +264,12 @@ function renderListings() {
 }
 
 /* 首次出現日期 */
+function mdate(s) {
+  if (!s) return '';
+  const [y, m, d] = s.slice(0, 10).split('-').map(Number);
+  const cy = new Date(DATA.listings_generated || Date.now()).getFullYear();
+  return (y !== cy ? y + '年' : '') + m + '月' + d + '日';
+}
 const sortPd = x => (x.first && x.first.pq !== 'base' && x.first.pd) || '';
 function daysAgo(pd) {
   const now = new Date(DATA.listings_generated || Date.now());
@@ -277,7 +297,7 @@ function firstCell(y, multi) {
 /* ---------- 屋苑比較 ---------- */
 let estSort = 'u500';
 function initEstates() {
-  DATA.estates.forEach(e => { const m = DATA.listings.filter(x => x.e === e.id); e.u500 = m.filter(x => x.p <= 500).length; e.u400 = m.filter(x => x.p <= 400).length; });
+  DATA.estates.forEach(e => { const m = DATA.listings.filter(x => x.e === e.id && !x.st); e.u500 = m.filter(x => x.p <= 500).length; e.u400 = m.filter(x => x.p <= 400).length; });
   $$('#tbl-est th.sortable').forEach(th => th.onclick = () => { estSort = th.dataset.k; renderEstates(); });
   renderEstates();
 }
@@ -313,7 +333,7 @@ function showEstate(id) {
   $$('.est-row').forEach(r => r.classList.toggle('sel', r.dataset.id === id));
   const st = e.stat || {};
   const sold = (e.sold || []).map(s => `<tr><td>${esc(s.bldg)} ${esc(s.floor)}樓</td><td class="num">${fmt(s.area)}呎</td><td class="num">${s.rooms ?? '—'}房</td><td class="num">${wan(s.price / 1e4)}</td><td class="num">${s.area ? '$' + fmt(s.price / s.area) : '—'}</td></tr>`).join('');
-  const mine = DATA.listings.filter(x => x.e === id && x.p <= 500).length;
+  const mine = DATA.listings.filter(x => x.e === id && !x.st && x.p <= 500).length;
   $('#est-detail').innerHTML = `<article class="card detail">
     <div class="card-head"><h2>${esc(e.name)}</h2><div class="btn-row"><button class="btn ghost sm" data-goto2="400">睇 ≤400萬放盤（${e.u400}）</button><button class="btn sm" data-goto2="500">睇 ≤500萬放盤（${mine}）</button></div></div>
     <div class="detail-grid">

@@ -214,3 +214,17 @@ th[aria-sort="ascending"] .th-sort, th[aria-sort="descending"] .th-sort { color:
 @media (min-width: 561px) and (max-width: 1180px) { .listing th.c-tags, .listing td.c-tags { display: none; } }
 @media (max-width: 560px) { .listing td.c-first .sub2 { white-space: normal; } }
 @media (min-width: 561px) and (max-width: 1180px) { .listing th, .listing td { padding-left: var(--space-2); padding-right: var(--space-2); } }
+/* 已售出／已下架 */
+.srcs { grid-column: span 2; }
+.st-pick { grid-column: span 2; }
+@media (max-width: 1100px) { .srcs { grid-column: span 2; } .st-pick { grid-column: span 1; } }
+@media (max-width: 560px) { .srcs, .st-pick { grid-column: span 2; } }
+.st { display: block; width: fit-content; margin: 4px 0 0 auto; font-size: var(--text-xs); font-weight: 600; padding: 1px 6px; border-radius: var(--radius-sm); white-space: nowrap; }
+.st.sold { color: #fff; background: var(--color-error, #a13544); }
+.st.gone { color: var(--color-text-muted); background: var(--color-surface-offset, #ece9e2); border: 1px solid var(--color-divider); }
+.listing tr.is-off td { background: color-mix(in srgb, var(--color-text) 3%, transparent); }
+.listing tr.is-off .price { color: var(--color-text-muted); text-decoration: line-through; text-decoration-thickness: 1px; }
+.listing tr.is-off .est-name, .listing tr.is-off td.c-hide, .listing tr.is-off td.c-first { color: var(--color-text-muted); }
+.listing td.c-price .sub2 a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.src.off { opacity: .55; text-decoration: line-through; }
+@media (max-width: 560px) { .listing tr.is-off { background: color-mix(in srgb, var(--color-text) 4%, var(--color-surface-2)); } .listing tr.is-off td { background: transparent; } }

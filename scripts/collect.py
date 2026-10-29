@@ -231,6 +231,30 @@ def centanet(est):
   return L, rents, total
 
 
+def centanet_tx(est):
+  """中原成交紀錄（近 90 日，包括土地註冊處及中原自己成交）"""
+  if not est.get("cen"):
+    return []
+  out = []; off = 0
+  while True:
+    d = jget("https://hk.centanet.com/findproperty/api/Transaction/Search", headers={"Platform": "Web", "Lang": "tc"},
+             data={"offset": off, "size": 100, "bigestAndEstate": [est["cen"]], "day": "Day90"})
+    if not d or "data" not in d:
+      raise RuntimeError("中原成交讀取失敗")
+    out += d["data"]; off += 100
+    if off >= d.get("count", 0) or off >= 600:
+      break
+  T = []
+  for x in out:
+    if x.get("firstOrSecondHand") not in (None, "SecondHand") or not x.get("transactionPrice"):
+      continue
+    T.append(dict(id=x.get("id"), price=x["transactionPrice"], area=x.get("nArea") or None, rooms=x.get("bedroomCount"),
+                  est=x.get("estateName"), bldg=x.get("buildingName") or "", floor=x.get("yAxis") or "", flat=x.get("xAxis") or "",
+                  date=(x.get("insDate") or "")[:10], reg=(x.get("regDate") or "")[:10] or None, src=x.get("dataSource"),
+                  url=x.get("detailUrl")))
+  return T
+
+
 # ---------------- 利嘉閣 ----------------
 def ric_state(alias, tx="buy"):
   h = curl(f"https://www.ricacorp.com/zh-hk/property/list/{tx}/{up.quote(alias)}")
@@ -353,6 +377,16 @@ def listings():
                               midland=f"https://www.midland.com.hk/zh-hk/list/buy/{up.quote(e['name'])}-E-{e['mid']}",
                               centanet=(f"https://hk.centanet.com/findproperty/list/buy/{up.quote(e['name'])}_{e['cen']}" if e.get("cen") else f"https://hk.centanet.com/findproperty/list/buy?q={up.quote(e['name'])}"),
                               ricacorp=f"https://www.ricacorp.com/zh-hk/property/list/buy/{up.quote(e['ric'])}")))
+  # 中原成交紀錄：用嚟判斷已下架放盤係咪已售出
+  oldT = load_old("transactions.json") or {}
+  T = {}
+  for e in ESTATES:
+    try:
+      T[e["id"]] = centanet_tx(e)
+    except Exception as ex:
+      print("  成交失敗:", e["name"], str(ex)[:80]); T[e["id"]] = oldT.get(e["id"], [])
+  save("transactions.json", T)
+  print("成交紀錄", sum(len(v) for v in T.values()))
   for k, v in ok.items():
     st_ = status.setdefault(k, {})
     st_["ok"] = v; st_["checked"] = now

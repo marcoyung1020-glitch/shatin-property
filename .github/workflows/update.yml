@@ -40,7 +40,7 @@ jobs:
         run: bash scripts/update.sh
       - name: 上載資料
         if: github.event_name != 'push'
-        run: python scripts/push_data.py push data/first_seen.json site/data/app.json site/data/estates.json site/data/listings_agency.json site/data/market.json site/data/status.json
+        run: python scripts/push_data.py push data/first_seen.json data/tracked.json site/data/transactions.json site/data/app.json site/data/estates.json site/data/listings_agency.json site/data/market.json site/data/status.json
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
