@@ -208,8 +208,8 @@ def centanet(est):
   while True:
     d = jget("https://hk.centanet.com/findproperty/api/Post/Search", headers={"Platform": "Web", "Lang": "tc"},
              data={"postType": "Sale", "offset": off, "size": 100, "bigestAndEstate": [est["cen"]]})
-    if not d:
-      break
+    if not d or "data" not in d:
+      raise RuntimeError(f"中原放盤讀取失敗（offset {off}）")  # 唔好當成冇盤
     total = d.get("count", 0)
     out += d.get("data", [])
     off += 100

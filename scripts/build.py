@@ -61,7 +61,17 @@ TRF = os.path.join(os.path.dirname(SEENF), "tracked.json")
 TR = json.load(open(TRF)) if os.path.exists(TRF) else {}
 TXF = os.path.join(D, "transactions.json")
 TX = json.load(open(TXF, encoding="utf-8")) if os.path.exists(TXF) else {}
-key_ = lambda x: f'{x["s"]}:{x["u"]}'
+# 連結去掉 ?fromagent= 之類參數，避免同一個盤因網址變咗當成新盤
+key_ = lambda x: f'{x["s"]}:{(x["u"] or "").split("?")[0]}'
+# 舊紀錄轉用新 key（同一個盤只留一份，優先保留放售中嗰份）
+_m = {}
+for k, v in TR.items():
+    nk = key_(v["x"]); o = _m.get(nk)
+    if o is None or (o.get("gone") and not v.get("gone")) or (bool(o.get("gone")) == bool(v.get("gone")) and v["seen"] > o["seen"]):
+        if o: v["since"] = min(v.get("since") or v["seen"], o.get("since") or o["seen"])
+        _m[nk] = v
+    elif o: o["since"] = min(v.get("since") or v["seen"], o.get("since") or o["seen"])
+TR = _m
 cur = {key_(x) for x in L}
 prev_n, cur_n = {}, {}
 for k, v in TR.items():
@@ -71,15 +81,25 @@ for x in L: cur_n[x["s"]] = cur_n.get(x["s"], 0) + 1
 healthy = {s_: cur_n.get(s_, 0) >= 0.85 * n for s_, n in prev_n.items()}
 for x in L:
     k = key_(x); v = TR.get(k)
-    TR[k] = dict(x=x, seen=NOW, gone=None, sold=None, since=(v or {}).get("since") or NOW)
+    TR[k] = dict(x=x, seen=NOW, gone=None, sold=None, miss=0, since=(v or {}).get("since") or NOW)
 # 個別屋苑讀唔齊（例如利嘉閣某幾版讀唔到）都唔當作下架
 got = {}
 for x in L: got[(x["s"], x["e"])] = got.get((x["s"], x["e"]), 0) + 1
 rep = {(s_, e["id"]): n for e in E for s_, n in (e.get("counts") or {}).items() if n}
-complete = lambda s_, e_: got.get((s_, e_), 0) >= 0.95 * rep.get((s_, e_), 0)
+had = {}
 for k, v in TR.items():
-    if k not in cur and v.get("gone") is None and healthy.get(v["x"]["s"], False) and complete(v["x"]["s"], v["x"]["e"]):
-        v["gone"] = NOW
+    if v.get("gone") is None: had[(v["x"]["s"], v["x"]["e"])] = had.get((v["x"]["s"], v["x"]["e"]), 0) + 1
+def complete(s_, e_):
+    g, h = got.get((s_, e_), 0), had.get((s_, e_), 0)
+    if g < 0.95 * rep.get((s_, e_), 0): return False   # 代理報嘅總數都讀唔齊
+    if h >= 5 and g < 0.8 * h: return False            # 一次過少咗兩成以上，多數係讀取出錯
+    return True
+# 連續兩次更新都搵唔到先當下架，避免一次讀取失誤
+for k, v in TR.items():
+    if k in cur or v.get("gone") is not None: continue
+    if healthy.get(v["x"]["s"], False) and complete(v["x"]["s"], v["x"]["e"]):
+        v["miss"] = v.get("miss", 0) + 1
+        if v["miss"] >= 2: v["gone"] = NOW
 # 保留下架後 60 日
 cut = (dt.datetime.now(HK) - dt.timedelta(days=60)).strftime("%Y-%m-%dT%H:%M")
 TR = {k: v for k, v in TR.items() if v.get("gone") is None or v["gone"] >= cut}
