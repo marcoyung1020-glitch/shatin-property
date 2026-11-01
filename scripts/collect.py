@@ -362,6 +362,16 @@ def listings():
       rL, rN = ricacorp(e)
     except Exception as ex:
       print("  利嘉閣失敗:", str(ex)[:80]); ok["ricacorp"] = False; rL, rN = None, pc.get("ricacorp")
+    # 某屋苑盤數比上次少一半以上（例如回傳 0 個），多數係讀取出錯：沿用上次資料
+    def sane(name, new, src):
+      old = keep(src)
+      if new is not None and len(old) >= 4 and len(new) < 0.5 * len(old):
+        print(f"  {name}異常：{len(new)} < 上次 {len(old)}，沿用上次"); ok[src] = False
+        return None
+      return new
+    cL = sane("中原", cL, "centanet"); rL = sane("利嘉閣", rL, "ricacorp")
+    if cL is None: cN = pc.get("centanet", cN)
+    if rL is None: rN = pc.get("ricacorp", rN)
     for x in (mL or []) + (cL or []) + (rL or []):
       x["estate"] = e["id"]
     mL = keep("midland") if mL is None else mL
