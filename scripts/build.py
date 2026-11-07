@@ -180,7 +180,7 @@ print("已下架", sum(1 for y in GONE if y["st"] == "gone"), "已售出", sum(1
 
 ES = []
 for e in E:
-    mine = [x for x in L if x["e"] == e["id"] and x["s"] in ("midland", "centanet", "ricacorp")]
+    mine = [x for x in L if x["e"] == e["id"] and x["s"] in ("midland", "centanet", "ricacorp", "c21")]
     psf = [x["f"] for x in mine if x["f"]]
     price = [x["p"] for x in mine]
     rpsf = [r["rent"] / r["area"] for r in e["rents"] if r.get("area")]

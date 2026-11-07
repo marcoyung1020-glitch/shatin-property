@@ -4,7 +4,7 @@
      美聯 / 中原 / 利嘉閣 放盤（API），輸出 site/data/*.json
 28Hse / House730 由 parse_portals.py 另行處理。
 """
-import json, re, subprocess, time, datetime as dt, csv, io, os, sys, urllib.parse as up
+import json, html, re, subprocess, time, datetime as dt, csv, io, os, sys, urllib.parse as up
 from concurrent.futures import ThreadPoolExecutor
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -17,22 +17,22 @@ PUBCACHE = json.load(open(PUBF)) if os.path.exists(PUBF) else {}
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"
 
 ESTATES = [
-  # id, 名稱, 片區, 美聯 ID, 中原 code, 利嘉閣 alias, 28Hse c-id, House730 id
-  dict(id="wai-king", name="蔚景園", area="沙田市中心", mid="E00490", cen="2-XSSZZHNRHT", ric="蔚景園-estate-沙田-hma-hk", h28=None, h730=25940),
-  dict(id="shatin-centre", name="沙田中心", area="沙田市中心", mid="E00316", cen="2-XSDTIHLYHT", ric="沙田中心-estate-沙田-hma-hk", h28=4086, h730=26026),
-  dict(id="riverside", name="河畔花園", area="沙田市中心", mid="E00422", cen="2-GYYYPPGOPS", ric="河畔花園-estate-沙田-hma-hk", h28=None, h730=25964),
-  dict(id="lucky-plaza", name="好運中心", area="沙田市中心", mid="E00276", cen="2-XSHHIHLXHT", ric="好運中心-estate-沙田-hma-hk", h28=None, h730=26025),
-  dict(id="wai-wah", name="偉華中心", area="沙田市中心", mid="E00489", cen="2-XSSZZHNSHT", ric="偉華中心-estate-沙田-hma-hk", h28=None, h730=25942),
-  dict(id="garden-city", name="花園城", area="沙田市中心", mid="E00320", cen="3-XSIXZHNEHT", ric="花園城-bigest-沙田-hma-hk", h28=4118, h730=25949),
-  dict(id="hilton", name="希爾頓中心", area="沙田市中心", mid="E00467", cen="2-XSSZZHNVHT", ric="希爾頓中心-estate-沙田-hma-hk", h28=None, h730=25941),
-  dict(id="belair", name="富豪花園", area="沙田市中心", mid="E00001", cen="2-GYEWPPGXPS", ric="富豪花園-estate-沙田-hma-hk", h28=None, h730=25965),
-  dict(id="shatin-plaza", name="沙田廣場", area="沙田市中心", mid="E00491", cen="2-XSSZZHNOHT", ric="沙田廣場-estate-沙田-hma-hk", h28=4099, h730=25943),
-  dict(id="tsui-lai", name="翠麗花園", area="沙田市中心", mid="E00424", cen="2-GYEAWPWXPS", ric="翠麗花園-estate-沙田-hma-hk", h28=4125, h730=26029),
-  dict(id="tin-yuen", name="田園閣", area="沙田市中心", mid="E00608", cen="2-XSDNZHNYHT", ric="田園閣-estate-沙田-hma-hk", h28=4115, h730=25947),
-  dict(id="city-one", name="沙田第一城", area="第一城 / 石門", mid="E00012", cen="3-XSHNIHSXHT", ric="沙田第一城-bigest-沙田第一城-hma-hk", h28=4080, h730=None),
-  dict(id="pictorial", name="碧濤花園", area="第一城 / 石門", mid="E00302", cen="3-XSLSTHZEHT", ric="碧濤花園-bigest-石門-hma-hk", h28=None, h730=25934),
-  dict(id="garden-vista", name="翠湖花園", area="第一城 / 石門", mid="E00492", cen="3-XSISTHZYHT", ric="翠湖花園-bigest-石門-hma-hk", h28=None, h730=25931),
-  dict(id="bayshore", name="濱景花園", area="第一城 / 石門", mid="E00014", cen="2-XSXSTHZJHT", ric="濱景花園-estate-石門-hma-hk", h28=None, h730=25930),
+  # id, 名稱, 片區, 美聯 ID, 中原 code, 利嘉閣 alias, 28Hse c-id, House730 id, 世紀21奇豐屋苑 ID
+  dict(id="wai-king", name="蔚景園", area="沙田市中心", mid="E00490", cen="2-XSSZZHNRHT", ric="蔚景園-estate-沙田-hma-hk", h28=None, h730=25940, c21=96),
+  dict(id="shatin-centre", name="沙田中心", area="沙田市中心", mid="E00316", cen="2-XSDTIHLYHT", ric="沙田中心-estate-沙田-hma-hk", h28=4086, h730=26026, c21=4),
+  dict(id="riverside", name="河畔花園", area="沙田市中心", mid="E00422", cen="2-GYYYPPGOPS", ric="河畔花園-estate-沙田-hma-hk", h28=None, h730=25964, c21=3),
+  dict(id="lucky-plaza", name="好運中心", area="沙田市中心", mid="E00276", cen="2-XSHHIHLXHT", ric="好運中心-estate-沙田-hma-hk", h28=None, h730=26025, c21=5),
+  dict(id="wai-wah", name="偉華中心", area="沙田市中心", mid="E00489", cen="2-XSSZZHNSHT", ric="偉華中心-estate-沙田-hma-hk", h28=None, h730=25942, c21=119),
+  dict(id="garden-city", name="花園城", area="沙田市中心", mid="E00320", cen="3-XSIXZHNEHT", ric="花園城-bigest-沙田-hma-hk", h28=4118, h730=25949, c21=101),
+  dict(id="hilton", name="希爾頓中心", area="沙田市中心", mid="E00467", cen="2-XSSZZHNVHT", ric="希爾頓中心-estate-沙田-hma-hk", h28=None, h730=25941, c21=42),
+  dict(id="belair", name="富豪花園", area="沙田市中心", mid="E00001", cen="2-GYEWPPGXPS", ric="富豪花園-estate-沙田-hma-hk", h28=None, h730=25965, c21=9),
+  dict(id="shatin-plaza", name="沙田廣場", area="沙田市中心", mid="E00491", cen="2-XSSZZHNOHT", ric="沙田廣場-estate-沙田-hma-hk", h28=4099, h730=25943, c21=100),
+  dict(id="tsui-lai", name="翠麗花園", area="沙田市中心", mid="E00424", cen="2-GYEAWPWXPS", ric="翠麗花園-estate-沙田-hma-hk", h28=4125, h730=26029, c21=35),
+  dict(id="tin-yuen", name="田園閣", area="沙田市中心", mid="E00608", cen="2-XSDNZHNYHT", ric="田園閣-estate-沙田-hma-hk", h28=4115, h730=25947, c21=36),
+  dict(id="city-one", name="沙田第一城", area="第一城 / 石門", mid="E00012", cen="3-XSHNIHSXHT", ric="沙田第一城-bigest-沙田第一城-hma-hk", h28=4080, h730=None, c21=1),
+  dict(id="pictorial", name="碧濤花園", area="第一城 / 石門", mid="E00302", cen="3-XSLSTHZEHT", ric="碧濤花園-bigest-石門-hma-hk", h28=None, h730=25934, c21=88),
+  dict(id="garden-vista", name="翠湖花園", area="第一城 / 石門", mid="E00492", cen="3-XSISTHZYHT", ric="翠湖花園-bigest-石門-hma-hk", h28=None, h730=25931, c21=32),
+  dict(id="bayshore", name="濱景花園", area="第一城 / 石門", mid="E00014", cen="2-XSXSTHZJHT", ric="濱景花園-estate-石門-hma-hk", h28=None, h730=25930, c21=91),
 ]
 
 
@@ -301,6 +301,84 @@ def ricacorp(est):
   return L, total
 
 
+# ---------------- 世紀21奇豐 ----------------
+C21 = "https://www.century21-goodwin.com"
+C21F = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "c21_detail.json")
+C21D = json.load(open(C21F, encoding="utf-8")) if os.path.exists(C21F) else {}
+_txt = lambda h: html.unescape(re.sub(r"<[^>]+>", "", re.sub(r'<span class="material-icons">.*?</span>', "", h or ""))).strip()
+
+
+def c21_detail(pid):
+  """詳情頁：樓層、間隔、座向、更新日期（每個盤只讀一次，之後用快取）"""
+  h = curl(f"{C21}/zh-hk/property/{pid}", retries=2)
+  if not h:
+    return None
+  t = re.sub(r"<script.*?</script>|<style.*?</style>", "", h, flags=re.S)
+  t = "|".join(x.strip() for x in re.sub(r"<[^>]+>", "|", t).split("|") if x.strip())
+  g = lambda k: (re.search(r"\|" + k + r"\|([^|]+)\|", t) or [None, None])[1]
+  upd = re.search(r"\|更新\|:\s*\|(\d{4}-\d\d-\d\d)", t)
+  rooms = g("間隔"); rn = re.match(r"(\d+)房", rooms or "")
+  return dict(floor=g("層數"), facing=g("座向"), rooms=int(rn.group(1)) if rn else (0 if rooms and "開放" in rooms else None),
+              updated=upd.group(1) if upd else "")
+
+
+def century21(est):
+  if not est.get("c21"):
+    return [], 0
+  base = f"{C21}/zh-hk/property-list/sale/{up.quote(est['name'])}-e-{est['c21']}?sort=updated&order=desc"
+  items, total, p = [], None, 1
+  while p <= 20:
+    h = ""
+    for k in range(3):
+      h = curl(base + (f"&page={p}" if p > 1 else ""))
+      if 'class="total"' in h or "property-list-item" in h:
+        break
+      time.sleep(3 + 3 * k)
+    if not h:
+      raise RuntimeError("世紀21讀取失敗")
+    if total is None:
+      m = re.search(r'class="total">(\d+)<', h)
+      if not m:
+        raise RuntimeError("世紀21版面異常")
+      total = int(m.group(1))
+    blocks = re.split(r'<div class="property-list-item property-list-item-sale', h)[1:]
+    for b in blocks:
+      m = re.search(r'href="/zh-hk/property/([A-Z]+\d+)/([^"]*)"', b)
+      if not m:
+        continue
+      title = _txt((re.search(r"<h3>(.*?)</h3>", b, re.S) or [None, ""])[1])
+      area = re.search(r"<label>實</label><div class=\"value\">([\d,]+)", b)
+      psf = re.search(r"<label>實</label>.*?class=\"ft_price\">@([\d,]+)", b, re.S)
+      price = re.search(r"<label>售</label><span><span class=\"sign\">\$</span>([\d.,]+)(?:<!-- -->)?\s*<span class=\"suffix\">(萬|億)", b)
+      tags = [_txt(x) for x in re.findall(r'class="tag hit_tags[^"]*">(.*?)</a>', b.split('class="section_mobile"')[0], re.S)]
+      sp = _txt((re.search(r'class="selling_point_layout">.*?<div class="text">(.*?)</div>', b, re.S) or [None, ""])[1])
+      items.append(dict(id=m.group(1), path=m.group(2), title=title, sp=sp,
+                        area=int(area.group(1).replace(",", "")) if area else None,
+                        psf=int(psf.group(1).replace(",", "")) if psf else None,
+                        price=(float(price.group(1).replace(",", "")) * (1e8 if price.group(2) == "億" else 1e4)) if price else None,
+                        tags=[x for x in tags if x][:4]))
+    if not blocks or len({x["id"] for x in items}) >= total:
+      break
+    p += 1; time.sleep(0.8)
+  L, seen, nd = [], set(), 0
+  for x in items:
+    if x["id"] in seen or not x["price"]:
+      continue
+    seen.add(x["id"])
+    d = C21D.get(x["id"])
+    if d is None and nd < 250:
+      nd += 1; time.sleep(0.5)
+      d = c21_detail(x["id"])
+      if d: C21D[x["id"]] = d
+    d = d or {}
+    bl = re.sub(r"^沙田\s*|^馬鞍山\s*", "", x["title"]).replace(est["name"], "").strip()
+    bl = re.sub(r"第0*(\d+)期", r"\1期", bl); bl = re.sub(r"第0*(\d+)座", r"\1座", bl)
+    L.append(dict(src="c21", ref=x["id"], price=x["price"], area=x["area"], psf=x["psf"], rooms=d.get("rooms"),
+                  bldg=bl, floor=d.get("floor"), facing=d.get("facing"), updated=d.get("updated") or "",
+                  tags=(x["tags"] + ([x["sp"]] if x["sp"] else []))[:4], url=f"{C21}/zh-hk/property/{x['id']}", lease=False))
+  return L, total
+
+
 def midland_all():
   """只讀美聯（喺香港電腦嘅 self-hosted runner 執行），結果存入 site/data/midland.json"""
   tok = midland_token()
@@ -324,7 +402,7 @@ def listings():
   oldE = {e["id"]: e for e in (load_old("estates.json") or [])}
   status = load_old("status.json") or {}
   now = dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).strftime("%Y-%m-%dT%H:%M")
-  ok = {"midland": True, "centanet": True, "ricacorp": True}
+  ok = {"midland": True, "centanet": True, "ricacorp": True, "c21": True}
   MF = load_old("midland.json") if os.environ.get("MIDLAND_FROM_FILE") else None
   if os.environ.get("MIDLAND_FROM_FILE"):
     tok = None  # GitHub 伺服器被美聯擋，改用 self-hosted runner 存低嘅 midland.json
@@ -362,6 +440,10 @@ def listings():
       rL, rN = ricacorp(e)
     except Exception as ex:
       print("  利嘉閣失敗:", str(ex)[:80]); ok["ricacorp"] = False; rL, rN = None, pc.get("ricacorp")
+    try:
+      gL, gN = century21(e)
+    except Exception as ex:
+      print("  世紀21失敗:", str(ex)[:80]); ok["c21"] = False; gL, gN = None, pc.get("c21")
     # 某屋苑盤數比上次少一半以上（例如回傳 0 個），多數係讀取出錯：沿用上次資料
     def sane(name, new, src):
       old = keep(src)
@@ -369,26 +451,29 @@ def listings():
         print(f"  {name}異常：{len(new)} < 上次 {len(old)}，沿用上次"); ok[src] = False
         return None
       return new
-    cL = sane("中原", cL, "centanet"); rL = sane("利嘉閣", rL, "ricacorp")
+    cL = sane("中原", cL, "centanet"); rL = sane("利嘉閣", rL, "ricacorp"); gL = sane("世紀21", gL, "c21")
     if cL is None: cN = pc.get("centanet", cN)
     if rL is None: rN = pc.get("ricacorp", rN)
-    for x in (mL or []) + (cL or []) + (rL or []):
+    if gL is None: gN = pc.get("c21", gN)
+    for x in (mL or []) + (cL or []) + (rL or []) + (gL or []):
       x["estate"] = e["id"]
     mL = keep("midland") if mL is None else mL
     cL = keep("centanet") if cL is None else cL
     rL = keep("ricacorp") if rL is None else rL
-    print(f"  midland {len(mL)}  centanet {len(cL)}/{cN}  ricacorp {len(rL)}/{rN}")
-    allL += mL + cL + rL
+    gL = keep("c21") if gL is None else gL
+    print(f"  midland {len(mL)}  centanet {len(cL)}/{cN}  ricacorp {len(rL)}/{rN}  c21 {len(gL)}/{gN}")
+    allL += mL + cL + rL + gL
     if mR is None or cR is None:
       rents = prev.get("rents", [])
     else:
       rents = [r for r in mR + cR if r.get("rent") and r.get("area")]
     estates_out.append(dict(id=e["id"], name=e["name"], area=e["area"], meta=meta, rents=rents,
-                            counts=dict(midland=mN, centanet=cN, ricacorp=rN),
+                            counts=dict(midland=mN, centanet=cN, ricacorp=rN, c21=gN),
                             links=dict(
                               midland=f"https://www.midland.com.hk/zh-hk/list/buy/{up.quote(e['name'])}-E-{e['mid']}",
                               centanet=(f"https://hk.centanet.com/findproperty/list/buy/{up.quote(e['name'])}_{e['cen']}" if e.get("cen") else f"https://hk.centanet.com/findproperty/list/buy?q={up.quote(e['name'])}"),
-                              ricacorp=f"https://www.ricacorp.com/zh-hk/property/list/buy/{up.quote(e['ric'])}")))
+                              ricacorp=f"https://www.ricacorp.com/zh-hk/property/list/buy/{up.quote(e['ric'])}",
+                              c21=f"{C21}/zh-hk/property-list/sale/{up.quote(e['name'])}-e-{e['c21']}")))
   # 中原成交紀錄：用嚟判斷已下架放盤係咪已售出
   oldT = load_old("transactions.json") or {}
   T = {}
@@ -404,6 +489,7 @@ def listings():
     st_["ok"] = v; st_["checked"] = now
     if v and not (k == "midland" and MF): st_["last_ok"] = now
   json.dump(PUBCACHE, open(PUBF, "w"))
+  json.dump(C21D, open(C21F, "w", encoding="utf-8"), ensure_ascii=False)
   save("status.json", status)
   save("estates.json", estates_out)
   save("listings_agency.json", allL)

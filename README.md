@@ -4,7 +4,7 @@
 資料檔唔存喺 main，而係存喺 `data` 分支，每次只保留一個 commit（`scripts/push_data.py pull / push`），repository 唔會越嚟越大。亦可喺 Actions 頁面撳「Run workflow」手動更新。
 
 - `python scripts/collect.py midland`：只讀美聯，存入 `site/data/midland.json`
-- `scripts/update.sh`：一鍵更新（市場數據、HIBOR、美聯／中原／利嘉閣放盤、整合）
+- `scripts/update.sh`：一鍵更新（市場數據、HIBOR、美聯／中原／利嘉閣／世紀21奇豐放盤、整合）
 - `scripts/collect.py`：CCL、差估署、土地註冊處、三大代理放盤
 - `scripts/hibor.py`：銀行公會 HIBOR
 - `scripts/build.py`：整合成 `site/data/app.json`

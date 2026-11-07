@@ -6,7 +6,7 @@ const fmt = (n, d = 0) => n == null || isNaN(n) ? '—' : Number(n).toLocaleStri
 const money = n => '$' + fmt(Math.round(n));
 const wan = n => fmt(n, n % 1 ? 1 : 0) + '萬';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const SRC = { midland: '美聯', centanet: '中原', ricacorp: '利嘉閣' };
+const SRC = { midland: '美聯', centanet: '中原', ricacorp: '利嘉閣', c21: '世紀21' };
 const H_CAP = 3.25, H_SPREAD = 1.3;
 let DATA, EST = {}, charts = {};
 
@@ -319,7 +319,7 @@ function renderEstates() {
       <td class="num"><a href="#listings?e=${e.id}" data-goto="${e.id}" data-max="500">${e.u500}</a></td>
       <td class="num">${e.rent_psf ? '$' + fmt(e.rent_psf, 1) : '—'}</td>
       <td class="num">${e.yield_ ? fmt(e.yield_, 2) + '%' : '—'}</td>
-      <td style="min-width:260px">${lk('midland', '美聯', c.midland)}${lk('centanet', '中原', c.centanet)}${lk('ricacorp', '利嘉閣', c.ricacorp)}</td>
+      <td style="min-width:260px">${lk('midland', '美聯', c.midland)}${lk('centanet', '中原', c.centanet)}${lk('ricacorp', '利嘉閣', c.ricacorp)}${lk('c21', '世紀21', c.c21)}</td>
     </tr>`;
   }).join('');
   $$('.est-row').forEach(r => {
