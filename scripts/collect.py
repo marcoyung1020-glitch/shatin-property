@@ -372,7 +372,7 @@ def century21(est):
       if d: C21D[x["id"]] = d
     d = d or {}
     bl = re.sub(r"^沙田\s*|^馬鞍山\s*", "", x["title"]).replace(est["name"], "").strip()
-    bl = re.sub(r"第0*(\d+)期", r"\1期", bl); bl = re.sub(r"第0*(\d+)座", r"\1座", bl)
+    bl = re.sub(r"第0*(\d+)期", r"\1期", bl); bl = re.sub(r"第0*(\d+)座", r"\1座", bl); bl = re.sub(r"\s*第$", "", bl).strip()
     L.append(dict(src="c21", ref=x["id"], price=x["price"], area=x["area"], psf=x["psf"], rooms=d.get("rooms"),
                   bldg=bl, floor=d.get("floor"), facing=d.get("facing"), updated=d.get("updated") or "",
                   tags=(x["tags"] + ([x["sp"]] if x["sp"] else []))[:4], url=f"{C21}/zh-hk/property/{x['id']}", lease=False))

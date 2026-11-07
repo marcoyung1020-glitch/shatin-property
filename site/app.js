@@ -167,7 +167,7 @@ function initListings() {
   const n = DATA.listings.filter(x => !x.st).length;
   const stale = Object.entries(DATA.status || {}).filter(([, v]) => !v.ok).map(([k, v]) => `${SRC[k]}（資料停留喺 ${(v.last_ok || '').replace('T', ' ')}）`);
   if (stale.length) { const w = $('#stale-note'); w.hidden = false; w.textContent = `注意：今次更新讀唔到 ${stale.join('、')}，暫時顯示上次資料。`; }
-  $('#list-sub').textContent = `${n.toLocaleString()} 條放盤記錄 · 3 間代理 · 15 個屋苑`;
+  $('#list-sub').textContent = `${n.toLocaleString()} 條放盤記錄 · ${Object.keys(SRC).length} 間代理 · 15 個屋苑`;
   renderListings();
 }
 function filtered() {
@@ -319,7 +319,7 @@ function renderEstates() {
       <td class="num"><a href="#listings?e=${e.id}" data-goto="${e.id}" data-max="500">${e.u500}</a></td>
       <td class="num">${e.rent_psf ? '$' + fmt(e.rent_psf, 1) : '—'}</td>
       <td class="num">${e.yield_ ? fmt(e.yield_, 2) + '%' : '—'}</td>
-      <td style="min-width:260px">${lk('midland', '美聯', c.midland)}${lk('centanet', '中原', c.centanet)}${lk('ricacorp', '利嘉閣', c.ricacorp)}${lk('c21', '世紀21', c.c21)}</td>
+      <td style="min-width:200px;width:210px">${lk('midland', '美聯', c.midland)}${lk('centanet', '中原', c.centanet)}${lk('ricacorp', '利嘉閣', c.ricacorp)}${lk('c21', '世紀21', c.c21)}</td>
     </tr>`;
   }).join('');
   $$('.est-row').forEach(r => {
