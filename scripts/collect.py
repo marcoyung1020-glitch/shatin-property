@@ -379,6 +379,22 @@ def century21(est):
   return L, total
 
 
+def c21_all():
+  """只讀世紀21（GitHub 伺服器被擋，喺香港電腦執行），結果存入 site/data/c21.json"""
+  now = dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).strftime("%Y-%m-%dT%H:%M")
+  out = {"generated": now, "estates": {}}
+  for e in ESTATES:
+    L, N = century21(e)
+    for x in L:
+      x["estate"] = e["id"]
+    print(e["name"], len(L), N)
+    out["estates"][e["id"]] = dict(L=L, N=N)
+  if sum(len(v["L"]) for v in out["estates"].values()) < 100:
+    raise SystemExit("世紀21放盤太少，唔覆蓋舊資料")
+  json.dump(C21D, open(C21F, "w", encoding="utf-8"), ensure_ascii=False)
+  save("c21.json", out)
+
+
 def midland_all():
   """只讀美聯（喺香港電腦嘅 self-hosted runner 執行），結果存入 site/data/midland.json"""
   tok = midland_token()
@@ -404,6 +420,12 @@ def listings():
   now = dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).strftime("%Y-%m-%dT%H:%M")
   ok = {"midland": True, "centanet": True, "ricacorp": True, "c21": True}
   MF = load_old("midland.json") if os.environ.get("MIDLAND_FROM_FILE") else None
+  GF = load_old("c21.json") if os.environ.get("MIDLAND_FROM_FILE") else None
+  if os.environ.get("MIDLAND_FROM_FILE"):
+    gen = (GF or {}).get("generated")
+    ok["c21"] = bool(gen) and (dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).replace(tzinfo=None) - dt.datetime.fromisoformat(gen)).total_seconds() < 5 * 3600
+    if gen:
+      status.setdefault("c21", {})["last_ok"] = gen
   if os.environ.get("MIDLAND_FROM_FILE"):
     tok = None  # GitHub 伺服器被美聯擋，改用 self-hosted runner 存低嘅 midland.json
     gen = (MF or {}).get("generated")
@@ -440,10 +462,14 @@ def listings():
       rL, rN = ricacorp(e)
     except Exception as ex:
       print("  利嘉閣失敗:", str(ex)[:80]); ok["ricacorp"] = False; rL, rN = None, pc.get("ricacorp")
-    try:
-      gL, gN = century21(e)
-    except Exception as ex:
-      print("  世紀21失敗:", str(ex)[:80]); ok["c21"] = False; gL, gN = None, pc.get("c21")
+    if os.environ.get("MIDLAND_FROM_FILE"):
+      d_ = (GF or {}).get("estates", {}).get(e["id"])
+      gL, gN = (d_["L"], d_["N"]) if d_ else (None, pc.get("c21"))
+    else:
+      try:
+        gL, gN = century21(e)
+      except Exception as ex:
+        print("  世紀21失敗:", str(ex)[:80]); ok["c21"] = False; gL, gN = None, pc.get("c21")
     # 某屋苑盤數比上次少一半以上（例如回傳 0 個），多數係讀取出錯：沿用上次資料
     def sane(name, new, src):
       old = keep(src)
@@ -487,9 +513,10 @@ def listings():
   for k, v in ok.items():
     st_ = status.setdefault(k, {})
     st_["ok"] = v; st_["checked"] = now
-    if v and not (k == "midland" and MF): st_["last_ok"] = now
+    if v and not (k in ("midland", "c21") and os.environ.get("MIDLAND_FROM_FILE")): st_["last_ok"] = now
   json.dump(PUBCACHE, open(PUBF, "w"))
-  json.dump(C21D, open(C21F, "w", encoding="utf-8"), ensure_ascii=False)
+  if not os.environ.get("MIDLAND_FROM_FILE"):
+    json.dump(C21D, open(C21F, "w", encoding="utf-8"), ensure_ascii=False)
   save("status.json", status)
   save("estates.json", estates_out)
   save("listings_agency.json", allL)
@@ -501,5 +528,7 @@ if __name__ == "__main__":
     market()
   if "midland" in what:
     midland_all()
+  if "c21" in what:
+    c21_all()
   if "listings" in what:
     listings()

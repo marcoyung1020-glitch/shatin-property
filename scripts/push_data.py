@@ -6,7 +6,7 @@
 Windows / Mac / Linux 通用。"""
 import os, subprocess, sys, tempfile
 
-FILES = ["data/first_seen.json", "data/midland_first_pub.json", "data/c21_detail.json",
+FILES = ["data/first_seen.json", "data/midland_first_pub.json", "data/c21_detail.json", "site/data/c21.json",
          "site/data/app.json", "site/data/estates.json", "site/data/listings_agency.json",
          "site/data/market.json", "site/data/midland.json", "site/data/status.json",
          "data/tracked.json", "site/data/transactions.json"]

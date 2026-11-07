@@ -31,7 +31,9 @@ def hk(ts):
         return d.astimezone(HK).strftime("%Y-%m-%dT%H:%M")
     except ValueError:
         return None
-SEEN.setdefault("_base_c21", NOW)  # 世紀21較後先加入，首次收錄嗰次嘅盤一樣當「開始追蹤前已放盤」
+# 世紀21較後先加入：第一次收錄到嘅盤一樣當「開始追蹤前已放盤」
+if any(x["src"] == "c21" for x in LA) and not any(k.startswith("c21:") for k in SEEN):
+    SEEN["_base_c21"] = NOW
 def stamp(key, pub, q):
     seen = SEEN.setdefault(key, NOW)
     pub = hk(pub)

@@ -16,7 +16,7 @@ concurrency:
 jobs:
   midland:
     runs-on: self-hosted
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       PYTHONUTF8: "1"
       PYTHONIOENCODING: utf-8
@@ -29,5 +29,8 @@ jobs:
         run: python scripts/push_data.py pull
       - name: 讀取美聯放盤
         run: python scripts/collect.py midland
+      - name: 讀取世紀21放盤
+        continue-on-error: true   # 世紀21失敗都照上載美聯
+        run: python scripts/collect.py c21
       - name: 上載
-        run: python scripts/push_data.py push site/data/midland.json data/midland_first_pub.json
+        run: python scripts/push_data.py push site/data/midland.json data/midland_first_pub.json site/data/c21.json data/c21_detail.json
