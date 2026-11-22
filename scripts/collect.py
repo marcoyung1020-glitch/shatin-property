@@ -33,7 +33,21 @@ ESTATES = [
   dict(id="pictorial", name="碧濤花園", area="第一城 / 石門", mid="E00302", cen="3-XSLSTHZEHT", ric="碧濤花園-bigest-石門-hma-hk", h28=None, h730=25934, c21=88),
   dict(id="garden-vista", name="翠湖花園", area="第一城 / 石門", mid="E00492", cen="3-XSISTHZYHT", ric="翠湖花園-bigest-石門-hma-hk", h28=None, h730=25931, c21=32),
   dict(id="bayshore", name="濱景花園", area="第一城 / 石門", mid="E00014", cen="2-XSXSTHZJHT", ric="濱景花園-estate-石門-hma-hk", h28=None, h730=25930, c21=91),
+  dict(id="park-belvedere", name="海柏花園", area="馬鞍山", mid="E00002", cen="2-DFRRURJVRV", ric="海柏花園-estate-馬鞍山-hma-hk", c21=707),
+  dict(id="mos-centre", name="馬鞍山中心", area="馬鞍山", mid="E00066", cen="2-XSSHIHXHHN", ric="馬鞍山中心-estate-馬鞍山-hma-hk", c21=721),
+  dict(id="sunshine-city", name="新港城", area="馬鞍山", mid="E00007", cen="3-XSHNIHZXHN", ric="新港城-bigest-馬鞍山-hma-hk", c21=701),
+  dict(id="waterside", name="雅濤居", area="馬鞍山", mid="E11318", cen="2-GYPEWPSYPB", ric="雅濤居-estate-馬鞍山-hma-hk", c21=732),
+  # 海濤居係新港城第5期：各代理都歸入新港城，由新港城放盤分拆出嚟（唔另外讀取）
+  dict(id="ocean-view", name="海濤居", area="馬鞍山", parent="sunshine-city", mid="E00007", c21=731,
+       meta=dict(op_date="1996年09月", total_flats=616, no_of_blocks=4, address="西沙路628號")),
 ]
+CHILD = {e["parent"]: e for e in ESTATES if e.get("parent")}
+
+
+def is_child(x):
+  """新港城放盤係咪屬海濤居（第5期）：海濤居座數係數字，新港城1–4期係英文字母"""
+  t = " ".join(str(x.get(k) or "") for k in ("phase", "bldg", "est"))
+  return "海濤居" in t or "5期" in t or bool(re.fullmatch(r"\s*\d+座\s*", str(x.get("bldg") or "")))
 
 
 def curl(url, headers=None, data=None, method=None, timeout=40, retries=3):
@@ -165,7 +179,7 @@ def midland(est, tok):
   for r in out:
     L.append(dict(src="midland", ref=r.get("serial_no"), price=r.get("price"), area=r.get("net_area") or None,
                   psf=r.get("price_over_net_area") or None, rooms=r.get("bedroom"),
-                  bldg=(r.get("building") or {}).get("name"), floor=(r.get("floor_level") or {}).get("name"),
+                  bldg=(r.get("building") or {}).get("name"), phase=(r.get("phase") or {}).get("name"), floor=(r.get("floor_level") or {}).get("name"),
                   facing=(r.get("orientation") or {}).get("name"), updated=(r.get("update_date") or "")[:10],
                   tags=[x["name"] for x in (r.get("misc") or {}).get("sell", [])][:4], url=r.get("url_desc"),
                   lease=bool(r.get("tenancy"))))
@@ -384,6 +398,8 @@ def c21_all():
   now = dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).strftime("%Y-%m-%dT%H:%M")
   out = {"generated": now, "estates": {}}
   for e in ESTATES:
+    if e.get("parent"):
+      continue
     L, N = century21(e)
     for x in L:
       x["estate"] = e["id"]
@@ -401,6 +417,8 @@ def midland_all():
   now = dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).strftime("%Y-%m-%dT%H:%M")
   out = {"generated": now, "estates": {}}
   for e in ESTATES:
+    if e.get("parent"):
+      continue
     L, R, meta, N = midland(e, tok)
     for x in L:
       x["estate"] = e["id"]
@@ -441,9 +459,13 @@ def listings():
   estates_out = []
   allL = []
   for e in ESTATES:
+    if e.get("parent"):
+      continue  # 分拆屋苑（海濤居）喺母屋苑處理
     print("==", e["name"])
     prev = oldE.get(e["id"], {})
-    keep = lambda src: [x for x in oldL if x["src"] == src and x.get("estate") == e["id"]]
+    ch = CHILD.get(e["id"])
+    ids = {e["id"]} | ({ch["id"]} if ch else set())
+    keep = lambda src: [x for x in oldL if x["src"] == src and x.get("estate") in ids]
     pc = prev.get("counts", {})
     mL = mR = None; meta = prev.get("meta", {}); mN = pc.get("midland")
     if MF and e["id"] in MF.get("estates", {}):
@@ -488,26 +510,52 @@ def listings():
     rL = keep("ricacorp") if rL is None else rL
     gL = keep("c21") if gL is None else gL
     print(f"  midland {len(mL)}  centanet {len(cL)}/{cN}  ricacorp {len(rL)}/{rN}  c21 {len(gL)}/{gN}")
-    allL += mL + cL + rL + gL
     if mR is None or cR is None:
       rents = prev.get("rents", [])
     else:
       rents = [r for r in mR + cR if r.get("rent") and r.get("area")]
+    counts = dict(midland=mN, centanet=cN, ricacorp=rN, c21=gN)
+    if ch:  # 新港城放盤分拆出海濤居
+      sub = {}
+      for k, Ls in (("midland", mL), ("centanet", cL), ("ricacorp", rL), ("c21", gL)):
+        for x in Ls:
+          x["estate"] = ch["id"] if is_child(x) else e["id"]
+        sub[k] = sum(1 for x in Ls if x["estate"] == ch["id"])
+      chc = {k: sub[k] for k in counts}
+      counts = {k: (v - sub[k] if v is not None else None) for k, v in counts.items()}
+      cm = dict(meta or {}); cm.update(ch.get("meta") or {})
+      for k in ("recent_sold", "recent_rent", "market_stat", "market_stat_by_room", "sell_count", "rent_count", "avg_net_ft_price", "min_net_ft_price", "max_net_ft_price", "developer"):
+        cm.pop(k, None)
+      print(f"  分拆 {ch['name']}：{chc}")
+      estates_out.append(dict(id=ch["id"], name=ch["name"], area=ch["area"], meta=cm, rents=rents, counts=chc, parent=e["id"],
+                              links=dict(midland="https://www.midland.com.hk/zh-hk/list/buy/%E6%B5%B7%E6%BF%A4%E5%B1%85-P-P000000133",
+                                         centanet=f"https://hk.centanet.com/findproperty/list/buy/{up.quote(e['name'])}_{e['cen']}",
+                                         ricacorp="https://www.ricacorp.com/zh-hk/property/list/buy/" + up.quote("5期-海濤居-phase-新港城-bigest-hk"),
+                                         c21=f"{C21}/zh-hk/property-list/sale/{up.quote(e['name'])}-e-{e['c21']}")))
+    allL += mL + cL + rL + gL
     estates_out.append(dict(id=e["id"], name=e["name"], area=e["area"], meta=meta, rents=rents,
-                            counts=dict(midland=mN, centanet=cN, ricacorp=rN, c21=gN),
+                            counts=counts,
                             links=dict(
                               midland=f"https://www.midland.com.hk/zh-hk/list/buy/{up.quote(e['name'])}-E-{e['mid']}",
                               centanet=(f"https://hk.centanet.com/findproperty/list/buy/{up.quote(e['name'])}_{e['cen']}" if e.get("cen") else f"https://hk.centanet.com/findproperty/list/buy?q={up.quote(e['name'])}"),
                               ricacorp=f"https://www.ricacorp.com/zh-hk/property/list/buy/{up.quote(e['ric'])}",
                               c21=f"{C21}/zh-hk/property-list/sale/{up.quote(e['name'])}-e-{e['c21']}")))
+  order = [e["id"] for e in ESTATES]
+  estates_out.sort(key=lambda x: order.index(x["id"]))
   # 中原成交紀錄：用嚟判斷已下架放盤係咪已售出
   oldT = load_old("transactions.json") or {}
   T = {}
   for e in ESTATES:
+    if e.get("parent"):
+      continue
     try:
       T[e["id"]] = centanet_tx(e)
     except Exception as ex:
-      print("  成交失敗:", e["name"], str(ex)[:80]); T[e["id"]] = oldT.get(e["id"], [])
+      print("  成交失敗:", e["name"], str(ex)[:80]); T[e["id"]] = oldT.get(e["id"], []) + oldT.get(CHILD.get(e["id"], {}).get("id"), [])
+    ch = CHILD.get(e["id"])
+    if ch:
+      T[ch["id"]] = [t for t in T[e["id"]] if is_child(t)]
+      T[e["id"]] = [t for t in T[e["id"]] if not is_child(t)]
   save("transactions.json", T)
   print("成交紀錄", sum(len(v) for v in T.values()))
   for k, v in ok.items():
