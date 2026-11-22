@@ -374,17 +374,17 @@ def century21(est):
     if not blocks or len({x["id"] for x in items}) >= total:
       break
     p += 1; time.sleep(0.8)
-  L, seen, nd = [], set(), 0
+  # 詳情頁每次都重新讀（更新日期會變），讀唔到就用上次快取
+  ids = list(dict.fromkeys(x["id"] for x in items if x["price"]))
+  with ThreadPoolExecutor(4) as ex:
+    for pid, d in zip(ids, ex.map(c21_detail, ids)):
+      if d: C21D[pid] = d
+  L, seen = [], set()
   for x in items:
     if x["id"] in seen or not x["price"]:
       continue
     seen.add(x["id"])
-    d = C21D.get(x["id"])
-    if d is None and nd < 250:
-      nd += 1; time.sleep(0.5)
-      d = c21_detail(x["id"])
-      if d: C21D[x["id"]] = d
-    d = d or {}
+    d = C21D.get(x["id"]) or {}
     bl = re.sub(r"^沙田\s*|^馬鞍山\s*", "", x["title"]).replace(est["name"], "").strip()
     bl = re.sub(r"第0*(\d+)期", r"\1期", bl); bl = re.sub(r"第0*(\d+)座", r"\1座", bl); bl = re.sub(r"\s*第$", "", bl).strip()
     L.append(dict(src="c21", ref=x["id"], price=x["price"], area=x["area"], psf=x["psf"], rooms=d.get("rooms"),

@@ -215,6 +215,8 @@ function renderListings() {
   // 首次出現：同一單位取各網站最早嘅日期
   const rank = y => (y.pq === 'base' ? '~' : '') + (y.pd || '9');
   rows.forEach(x => { x.first = x.all.reduce((m, y) => (!m || rank(y) < rank(m)) ? y : m, null); });
+  // 網頁更新：同一單位取最新嗰間代理
+  rows.forEach(x => { x.lu = x.all.reduce((m, y) => (y.d && (!m || y.d > m.d)) ? y : m, null); x.d = x.lu ? x.lu.d : ''; });
   const [key, dir] = $('#f-sort').value.split(':');
   const sgn = dir === 'asc' ? 1 : -1;
   const val = x => key === 'p' ? x.p : key === 'a' ? x.a : key === 'f' ? x.f : key === 'pd' ? sortPd(x) : key === 'y' ? x.y : key === 'dc' ? x.dc : x.d;
@@ -254,15 +256,21 @@ function renderListings() {
       <td class="c-hide c-rf">${rooms}<span class="sub2">${esc(x.fl) || '—'}</span></td>
       <td class="c-first">${firstCell(x.first, x.all.length > 1)}</td>
       <td class="c-meta">${[x.a ? fmt(x.a) + '呎' : '', x.f ? '$' + fmt(x.f) + '/呎' : '', rooms, esc(x.fl), x.y != null ? '回報 ' + yieldTxt(x) : ''].filter(Boolean).join(' · ')}${x.st ? '' : belowTag(x)}</td>
+      <td class="c-upd">${updCell(x.lu, x.all.length > 1)}</td>
       <td class="c-src">${srcs}</td>
       <td class="c-tags"><div class="chips">${tags}</div></td>
       <td class="c-act"><button class="btn ghost sm" data-calc="${x.p}">計按揭</button></td>
     </tr>`;
-  }).join('') || `<tr><td colspan="10" class="muted">冇符合條件嘅放盤，試下放寬篩選。</td></tr>`;
+  }).join('') || `<tr><td colspan="12" class="muted">冇符合條件嘅放盤，試下放寬篩選。</td></tr>`;
   $('#more').hidden = rows.length <= shown;
   $$('[data-calc]', tb).forEach(b => b.onclick = () => { $('#c-price').value = b.dataset.calc; location.hash = '#calc'; });
 }
 
+/* 網頁更新日期 */
+function updCell(y, multi) {
+  if (!y || !y.d) return '—';
+  return `<span class="first-date">${mdate(y.d)}</span><span class="sub2">${[daysAgo(y.d.slice(0, 10)), multi ? SRC[y.s] : ''].filter(Boolean).join(' · ')}</span>`;
+}
 /* 首次出現日期 */
 function mdate(s) {
   if (!s) return '';
@@ -295,9 +303,9 @@ function firstCell(y, multi) {
 }
 
 /* ---------- 屋苑比較 ---------- */
-let estSort = 'u500';
+let estSort = 'u400';
 function initEstates() {
-  DATA.estates.forEach(e => { const m = DATA.listings.filter(x => x.e === e.id && !x.st); e.u500 = m.filter(x => x.p <= 500).length; e.u400 = m.filter(x => x.p <= 400).length; });
+  DATA.estates.forEach(e => { const m = DATA.listings.filter(x => x.e === e.id && !x.st); e.u400 = m.filter(x => x.p <= 400).length; });
   $$('#tbl-est th.sortable').forEach(th => th.onclick = () => { estSort = th.dataset.k; renderEstates(); });
   renderEstates();
 }
@@ -316,7 +324,6 @@ function renderEstates() {
       <td class="num">${e.med_psf ? '$' + fmt(e.med_psf) : '—'}</td>
       <td class="num">${e.med_price ? wan(e.med_price) : '—'}</td>
       <td class="num"><a href="#listings?e=${e.id}" data-goto="${e.id}" data-max="400">${e.u400}</a></td>
-      <td class="num"><a href="#listings?e=${e.id}" data-goto="${e.id}" data-max="500">${e.u500}</a></td>
       <td class="num">${e.rent_psf ? '$' + fmt(e.rent_psf, 1) : '—'}</td>
       <td class="num">${e.yield_ ? fmt(e.yield_, 2) + '%' : '—'}</td>
       <td style="min-width:200px;width:210px">${lk('midland', '美聯', c.midland)}${lk('centanet', '中原', c.centanet)}${lk('ricacorp', '利嘉閣', c.ricacorp)}${lk('c21', '世紀21', c.c21)}</td>
@@ -333,9 +340,8 @@ function showEstate(id) {
   $$('.est-row').forEach(r => r.classList.toggle('sel', r.dataset.id === id));
   const st = e.stat || {};
   const sold = (e.sold || []).map(s => `<tr><td>${esc(s.bldg)} ${esc(s.floor)}樓</td><td class="num">${fmt(s.area)}呎</td><td class="num">${s.rooms ?? '—'}房</td><td class="num">${wan(s.price / 1e4)}</td><td class="num">${s.area ? '$' + fmt(s.price / s.area) : '—'}</td></tr>`).join('');
-  const mine = DATA.listings.filter(x => x.e === id && !x.st && x.p <= 500).length;
   $('#est-detail').innerHTML = `<article class="card detail">
-    <div class="card-head"><h2>${esc(e.name)}</h2><div class="btn-row"><button class="btn ghost sm" data-goto2="400">睇 ≤400萬放盤（${e.u400}）</button><button class="btn sm" data-goto2="500">睇 ≤500萬放盤（${mine}）</button></div></div>
+    <div class="card-head"><h2>${esc(e.name)}</h2><div class="btn-row"><button class="btn sm" data-goto2="400">睇 ≤400萬放盤（${e.u400}）</button></div></div>
     <div class="detail-grid">
       <dl class="facts">
         <div><dt>地址</dt><dd>${esc(e.address) || '—'}</dd></div>

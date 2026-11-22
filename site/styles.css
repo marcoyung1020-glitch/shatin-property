@@ -228,3 +228,22 @@ th[aria-sort="ascending"] .th-sort, th[aria-sort="descending"] .th-sort { color:
 .listing td.c-price .sub2 a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .src.off { opacity: .55; text-decoration: line-through; }
 @media (max-width: 560px) { .listing tr.is-off { background: color-mix(in srgb, var(--color-text) 4%, var(--color-surface-2)); } .listing tr.is-off td { background: transparent; } }
+/* 放盤表：收窄欄位，計按揭掣唔會被切 */
+@media (min-width: 561px) {
+  .listing th, .listing td { padding-left: var(--space-2); padding-right: var(--space-2); }
+  .listing td.c-price { white-space: normal; min-width: 92px; }
+  .listing td.c-price .sub2 { white-space: normal; }
+  .listing td.c-first { min-width: 104px; max-width: 128px; }
+  .listing td.c-upd { white-space: nowrap; }
+  .listing td.c-tags { max-width: 150px; }
+  .listing td.c-tags .chips { flex-wrap: wrap; }
+  .listing td.c-tags .chip { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .listing th:last-child, .listing td.c-act { position: sticky; right: 0; z-index: 1; background: var(--color-surface-2); box-shadow: -1px 0 0 var(--color-divider); }
+  .listing tr.is-off td.c-act { background: color-mix(in srgb, var(--color-text) 3%, var(--color-surface-2)); }
+}
+@media (max-width: 560px) {
+  .listing td.c-upd { grid-column: 1 / -1; font-size: var(--text-xs); color: var(--color-text-muted); }
+  .listing td.c-upd .first-date::before { content: '網頁更新 '; }
+  .listing td.c-upd .first-date, .listing td.c-upd .sub2 { display: inline; color: var(--color-text-muted); }
+  .listing td.c-upd .sub2::before { content: ' · '; }
+}
