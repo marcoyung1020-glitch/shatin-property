@@ -39,7 +39,7 @@ ESTATES = [
   dict(id="waterside", name="雅濤居", area="馬鞍山", mid="E11318", cen="2-GYPEWPSYPB", ric="雅濤居-estate-馬鞍山-hma-hk", c21=732),
   # 海濤居係新港城第5期：各代理都歸入新港城，由新港城放盤分拆出嚟（唔另外讀取）
   dict(id="ocean-view", name="海濤居", area="馬鞍山", parent="sunshine-city", mid="E00007", c21=731,
-       meta=dict(op_date="1996年09月", total_flats=616, no_of_blocks=4, address="西沙路628號")),
+       meta=dict(op_date="1996年09月", total_flats="616", no_of_blocks="4", address="西沙路628號")),
 ]
 CHILD = {e["parent"]: e for e in ESTATES if e.get("parent")}
 

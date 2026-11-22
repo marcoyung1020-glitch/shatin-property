@@ -34,20 +34,30 @@ def hk(ts):
 # 世紀21較後先加入：第一次收錄到嘅盤一樣當「開始追蹤前已放盤」
 if any(x["src"] == "c21" for x in LA) and not any(k.startswith("c21:") for k in SEEN):
     SEEN["_base_c21"] = NOW
-def stamp(key, pub, q):
+# 後加入嘅屋苑：第一次收錄到嘅盤當「開始追蹤前已放盤」
+_old_est = set(SEEN.get("_estates") or [])
+if not _old_est:  # 首次記錄：以前已追蹤嘅 15 個屋苑
+    _old_est = {"wai-king", "shatin-centre", "riverside", "lucky-plaza", "wai-wah", "garden-city", "hilton", "belair",
+                "shatin-plaza", "tsui-lai", "tin-yuen", "city-one", "pictorial", "garden-vista", "bayshore"}
+for x in LA:
+    if x.get("estate") and x["estate"] not in _old_est:
+        SEEN[f"_base_est_{x['estate']}"] = NOW; _old_est.add(x["estate"])
+SEEN["_estates"] = sorted(_old_est)
+def stamp(key, pub, q, est=None):
     seen = SEEN.setdefault(key, NOW)
     pub = hk(pub)
     if pub and pub[:16] <= seen:
         return pub, q
     src = key.split(":", 1)[0]
-    return seen, ("base" if seen == SEEN.get(f"_base_{src}", BASE) else "seen")
+    b = seen == SEEN.get(f"_base_{src}", BASE) or seen == SEEN.get(f"_base_est_{est}")
+    return seen, ("base" if b else "seen")
 L = []
 for x in LA:
     if not x.get("price"): continue
     L.append(dict(s=x["src"], e=x["estate"], p=round(x["price"] / 1e4, 1), a=x.get("area"), f=x.get("psf"),
                   r=x.get("rooms"), b=x.get("bldg") or "", fl=x.get("floor") or "", d=x.get("updated") or "",
                   t=x.get("tags") or [], u=x.get("url") or "", ls=x.get("lease")))
-    L[-1]["pd"], L[-1]["pq"] = stamp(f'{x["src"]}:{x.get("ref") or x.get("url")}', x.get("pub"), "exact")
+    L[-1]["pd"], L[-1]["pq"] = stamp(f'{x["src"]}:{x.get("ref") or x.get("url")}', x.get("pub"), "exact", x.get("estate"))
 # 剔除車位、舖位及資料不全
 def ok(x):
     txt = " ".join([x["b"]] + list(x["t"]))
